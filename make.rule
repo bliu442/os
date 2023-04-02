@@ -1,0 +1,59 @@
+.PHONY:all clean debug
+
+GCCFLAGS = -m32 #32位程序
+GCCFLAGS += -masm=intel
+GCCFLAGS += -fno-builtin #不需要gcc内置函数
+GCCFLAGS += -nostdinc #不需要标准头函数
+GCCFLAGS += -fno-pic #不需要位置无关的代码 position independent code
+GCCFLAGS += -fno-pie #不需要位置无关的可执行程序 position independent executable
+GCCFLAGS += -nostdlib #不需要标准库
+GCCFLAGS += -fno-stack-protector #不需要栈保护
+GCCFLAGS := $(strip $(GCCFLAGS))
+
+NASMFLAGS := -f elf32
+
+DEBUG := -g
+
+DIR_DEPS := $(DIR)/deps
+DIRS := $(DIR) $(DIR_DEPS)
+
+SRCS := $(wildcard *.c)
+OBJS = $(SRCS:.c=.o)
+OBJS := $(addprefix $(DIR)/, $(OBJS))
+DEPS = $(SRCS:.c=.dep)
+DEPS := $(addprefix $(DIR_DEPS)/, $(DEPS))
+
+SRCS_ASM := $(wildcard *.asm)
+OBJS_ASM = $(SRCS_ASM:.asm=.o)
+OBJS_ASM := $(addprefix $(DIR)/, $(OBJS_ASM))
+
+ifneq ($(MAKECMDGOALS), clean)
+-include $(DEPS)
+endif
+
+all:$(DIR) $(OBJS) $(OBJS_ASM)
+
+$(DIR)/%.o:%.c
+	gcc $(GCCFLAGS) $(DEBUG) -c $(filter %.c, $^) -o $@
+
+$(DIR)/%.o:%.asm
+	nasm $(NASMFLAGS) $(DEBUG) $^ -o $@
+
+$(DIRS):
+	mkdir -p $@
+
+$(DIR_DEPS)/%.dep:$(DIR_DEPS) %.c
+	@set -e; \
+	gcc -E -MM $(filter %.c, $^) > $@.tmp; \
+	sed 's,\(.*\)\.o[:]*,$(DIR)/\1.o $@:,g'    < $@.tmp    >$@ ;\
+
+clean:
+	rm -rf $(DIRS)
+
+debug:
+	@echo "编译中间文件存放目录: $(DIR)"
+	@echo ".c依赖存放目录: $(DIR_DEPS)"
+	@echo "SRCS = $(SRCS)"
+	@echo "OBJS = $(OBJS)"
+	@echo "SRCS_ASM = $(SRCS_ASM)"
+	@echo "OBJS_ASM = $(OBJS_ASM)"
