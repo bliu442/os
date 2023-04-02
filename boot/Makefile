@@ -2,7 +2,7 @@
 
 DIR = ../Build/boot
 
-all:$(DIR) $(DIR)/mbr.bin #$(DIR)/setup.bin
+all:$(DIR) $(DIR)/mbr.bin $(DIR)/setup.bin
 
 $(DIR)/%.bin:%.asm
 	nasm $^ -o $@
