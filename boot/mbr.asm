@@ -44,14 +44,32 @@ SECTION MBR
 	mov bp, ax
 	mov cx, 5
 
-	mov dh, 0
-	mov dl, 0
+	mov dh, 1
+	mov dl, 40
 
 	mov ah, 0x13
 	mov al, 0x1
 	int 0x10
 
 	xchg bx, bx
+
+	mov ax, 0xB800
+	mov gs, ax
+
+	mov byte [gs:0x0], '1'
+	mov byte [gs:0x1], 0xA4
+
+	mov byte [gs:0x2], ' '
+	mov byte [gs:0x3], 0xA4
+
+	mov byte [gs:0x4], 'M'
+	mov byte [gs:0x5], 0xA4
+
+	mov byte [gs:0x6], 'B'
+	mov byte [gs:0x7], 0xA4
+
+	mov byte [gs:0x8], 'R'
+	mov byte [gs:0x9], 0xA4
 
 	jmp $
 
