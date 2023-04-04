@@ -28,25 +28,8 @@ SECTION setup
 	mov byte [gs:0xC], 'P'
 	mov byte [gs:0xD], 0xA4
 
-;内存检测
-memory_check:
-	xor ebx, ebx ;首次调用ebx = 0
-	mov di, ARDS_BUFFER ;ARDS存放地址
-	mov word [ARDS_TIMES_BUFFER], 0 ;检测次数,每次返回一个ARDS
-
-.loop:
-	mov eax, 0xE820
-	mov ecx, 20
-	mov edx, 0x534D4150
-	int 0x15
-	
-	jc memory_check_error
-
-	add di, cx
-	inc word [ARDS_TIMES_BUFFER]
-
-	cmp ebx, 0 ;bios写数据判断是否结束内存检测
-	jne .loop
+	;内存检测
+	call memory_check
 
 	;进入保护模式 构建GDT表,打开A20总线,cr0 PE位置一
 	xchg bx, bx
@@ -68,10 +51,37 @@ memory_check:
 	
 	jmp $
 
+memory_check:
+	xor ebx, ebx ;首次调用ebx = 0
+	mov di, ARDS_BUFFER ;ARDS存放地址
+	mov word [ARDS_TIMES_BUFFER], 0 ;检测次数,每次返回一个ARDS
+
+.loop:
+	mov eax, 0xE820
+	mov ecx, 20
+	mov edx, 0x534D4150
+	int 0x15
+	
+	jc memory_check_error
+
+	add di, cx
+	inc word [ARDS_TIMES_BUFFER]
+
+	cmp ebx, 0 ;bios写数据判断是否结束内存检测
+	jne .loop
+
+	ret
+
+memory_check_error:
+	mov byte [gs:160], 'm'
+	mov byte [gs:162], 'e'
+	mov byte [gs:164], 'r'
+	mov byte [gs:168], 'r'
+
+	jmp $
+
 [BITS 32]
 protected_mode:
-	xchg bx, bx
-
 	mov ax, R0_DATA_SELECTOR
 	mov ss, ax
 	mov ds, ax
@@ -107,14 +117,9 @@ protected_mode:
 
 	mov byte [gs:160], 'v'
 
-	jmp $
+	call kernel_init
 
-
-memory_check_error:
-	mov byte [gs:160], 'm'
-	mov byte [gs:162], 'e'
-	mov byte [gs:164], 'r'
-	mov byte [gs:168], 'r'
+	jmp KERNEL_ADDR
 
 	jmp $
 
@@ -162,6 +167,81 @@ setup_page:
 	inc esi
 	add eax, 0x1000
 	loop .create_kernel_ptt
+
+	ret
+
+kernel_init:
+	mov ecx, KERNEL_SECTOR_START
+	mov bl, KERNEL_SECTOR_SIZE
+	mov edi, KERNEL_ADDR
+	call read_disk
+
+	ret
+
+;读硬盘 lba28
+;调用方法
+;mov ecx, num 读取硬盘起始地址
+;mov bl, num 读取多少块
+;mov edi, addr 读到那里
+;void read_disk(void)
+read_disk:
+	mov dx, 0x1F2
+	mov al, bl
+	out dx, al
+
+	inc dx
+	mov al, cl
+	out dx, al
+
+	inc dx
+	mov al, ch
+	out dx, al
+
+	shr ecx, 16
+
+	inc dx
+	mov al, cl
+	out dx, al
+
+	inc dx
+	shr ecx, 8
+	mov al, cl
+	and al, 0b1110_1111
+	out dx, al
+
+	inc dx
+	mov al, 0x20
+	out dx, al
+	
+	mov cl, bl
+.start_read:
+	push cx
+	
+	call .check_status
+	call .read_1_sector
+
+	pop cx
+	loop .start_read
+
+	ret
+
+.check_status:
+	mov dx, 0x1F7
+	in al, dx
+	and al, 0b1000_1000
+	cmp al, 0b0000_1000
+	jnz .check_status
+
+	ret
+
+.read_1_sector:
+	mov dx, 0x1F0
+	mov cx, 0x100
+.read_data:
+	in ax, dx
+	mov [edi], ax
+	add edi, 2
+	loop .read_data
 
 	ret
 

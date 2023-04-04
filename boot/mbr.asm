@@ -7,8 +7,6 @@
 [ORG 0x7C00]
 
 SECTION mbr
-	xchg bx, bx
-
 	mov ax, cs
 	mov ss, ax
 	mov ds, ax
@@ -23,8 +21,6 @@ SECTION mbr
 	mov al, 3
 	int 0x10
 
-	xchg bx, bx
-
 ;int 0x10 读取光标位置
 ;in bh = 0 页码
 ;out ch = 光标开始行 cl = 光标结束行
@@ -32,8 +28,6 @@ SECTION mbr
 	mov ah, 0x3
 	mov bh, 0
 	int 0x10
-
-	xchg bx, bx
 
 ;int 0x10 bios中断打印字符串
 ;in al = 1 字符串只含显示字符，显示后光标位置改变 bh = 0 页码 bl = 2 属性
@@ -52,8 +46,6 @@ SECTION mbr
 	mov ah, 0x13
 	mov al, 0x1
 	int 0x10
-
-	xchg bx, bx
 
 	mov ax, 0xB800
 	mov gs, ax
