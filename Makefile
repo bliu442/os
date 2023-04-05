@@ -3,7 +3,7 @@
 PWD = /home/liuben/bliuProject/bliu_os#工程绝对路径
 BUILD = Build#编译生成文件存放路径
 
-DIRS = boot init kernel/chr_drv kernel/asm lib
+DIRS = boot init kernel/chr_drv kernel/asm lib kernel
 OBJS_DIRS := $(addprefix ./$(BUILD)/, $(DIRS))
 DIRS := $(addprefix $(PWD)/, $(DIRS))
 
@@ -24,7 +24,7 @@ compiling:
 all:$(HD_IMG) $(BUILD)/system.bin
 	dd if=./$(BUILD)/boot/mbr.bin of=$(HD_IMG) bs=512 seek=0 count=1 conv=notrunc
 	dd if=./$(BUILD)/boot/setup.bin of=$(HD_IMG) bs=512 seek=1 count=4 conv=notrunc
-	dd if=./$(BUILD)/system.bin of=$(HD_IMG) bs=512 seek=5 count=20 conv=notrunc
+	dd if=./$(BUILD)/system.bin of=$(HD_IMG) bs=512 seek=5 count=40 conv=notrunc
 
 clean:
 	rm -rf $(RMS)

@@ -1,24 +1,15 @@
 #include "../include/kernel/print.h"
+#include "../include/kernel/interrupt.h"
+#include "../include/kernel/traps.h"
+#include "../include/asm/system.h"
 
+void _start(void) {
+	put_str("\rkernel!\r");
+	pic_init();
+	idt_init();
 
-void kernel_main(void) {
-	put_char('\n');
-	put_char('k');
-	put_char('e');
-	put_char('r');
-	put_char('n');
-	put_char('e');
-	put_char('l');
-	put_char('\r');
+	STI
+	int i = 10 / 0;
 
-	put_str("kernel!\r");
-
-	put_int(0x12345678);
-	put_char('\r');
-	put_int(0x00000000);
-
-	char *ptr = "hello world!\r";
-	console_init();
-	console_write(ptr, 13);
 	while(1);
 }

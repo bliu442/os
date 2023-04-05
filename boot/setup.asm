@@ -31,12 +31,10 @@ SECTION setup
 	;内存检测
 	call memory_check
 
-	;进入保护模式 构建GDT表,打开A20总线,cr0 PE位置一
-	xchg bx, bx
-
 	;关中断
 	cli
-	
+
+	;进入保护模式 构建GDT表,打开A20总线,cr0 PE位置一
 	lgdt [gdt_ptr]
 
 	in al, 0x92
