@@ -3,14 +3,14 @@
 PWD = /home/liuben/bliuProject/bliu_os#工程绝对路径
 BUILD = Build#编译生成文件存放路径
 
-DIRS = boot init
+DIRS = boot init kernel/chr_drv kernel/asm lib
 OBJS_DIRS := $(addprefix ./$(BUILD)/, $(DIRS))
 DIRS := $(addprefix $(PWD)/, $(DIRS))
 
 OBJS := $(addsuffix /*.o, $(OBJS_DIRS))
 OBJS := $(wildcard $(OBJS))
 
-RMS = bx_enh_dbg.ini $(HD_IMG) $(BUILD)
+RMS = bx_enh_dbg.ini .vscode/settings.json $(HD_IMG) $(BUILD)
 
 HD_IMG = hd20M.img
 
@@ -46,6 +46,6 @@ $(BUILD)/system.bin:$(BUILD)/kernel.elf
 	nm $^ | sort > $(BUILD)/system.map
 
 $(BUILD)/kernel.elf:$(OBJS)
-	ld -m elf_i386 $^ -o $@ -Ttext 0x1200
+	ld -m elf_i386 $^ -o $@ -Ttext 0x10000
 
 
