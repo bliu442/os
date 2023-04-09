@@ -7,8 +7,9 @@
 %define ERROR_CODE nop
 %define IDT_INDEX push 0
 
-extern exception_handler ;see interrupt.c
+extern exception_handler ;see interrupt.h
 extern put_str ;see print.h
+extern clock_handler ;see interrupt.h
 
 section .data
 global interrupt_handler_table
@@ -102,7 +103,7 @@ INTERRUPT_HANDLER 0x1D, IDT_INDEX, interrupt_handler_default ;reserved
 INTERRUPT_HANDLER 0x1E, IDT_INDEX, interrupt_handler_default ;reserved
 INTERRUPT_HANDLER 0x1F, IDT_INDEX, interrupt_handler_default ;reserved
 
-INTERRUPT_HANDLER 0x20, IDT_INDEX, interrupt_handler_default
+INTERRUPT_HANDLER 0x20, IDT_INDEX, clock_handler
 INTERRUPT_HANDLER 0x21, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x22, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x23, IDT_INDEX, interrupt_handler_default

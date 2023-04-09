@@ -2,14 +2,9 @@
  8259a中断控制器初始化 必须依次写入ICW1-ICW4 再写入OCW1
  */
 
+#include "../include/kernel/interrupt.h"
 #include "../include/asm/io.h"
-#include "../include/stdint.h"
 #include "../include/kernel/print.h"
-
-#define PIC_M_CTRL 0x20
-#define PIC_M_DATA 0x21
-#define PIC_S_CTRL 0xA0
-#define PIC_S_DATA 0xA1
 
 char *messages[] = {
 	"#DE Divide Error",
