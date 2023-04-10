@@ -5,6 +5,7 @@
 #include "../include/kernel/interrupt.h"
 #include "../include/asm/io.h"
 #include "../include/kernel/print.h"
+#include "../include/asm/system.h"
 
 char *messages[] = {
 	"#DE Divide Error",
@@ -91,4 +92,50 @@ void exception_handler(uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, uint3
 	put_char('\r');
 
 	while(true);
+}
+
+/*
+ @brief 获取eflags if位状态
+ @retval if_sti/if_cli
+ */
+static if_enum_t interrupt_get_status(void) {
+	uint32_t eflags = 0;
+	GET_EFLAGS(eflags);
+	return (EFLAGS_IF & eflags) ? if_sti : if_cli;
+}
+
+/*
+ @brief 打开中断并返回if位之前状态
+ @retval if_sti/if_cli
+ */
+static if_enum_t interrupt_enable(void) {
+	if_enum_t old_status;
+	if(if_sti == interrupt_get_status())
+		old_status = if_sti;
+	else {
+		old_status = if_cli;
+		STI
+	}
+
+	return old_status;
+}
+
+/*
+ @brief 关闭中断并返回if位之前状态
+ @retval if_sti/if_cli
+ */
+if_enum_t interrupt_disable(void) {
+	if_enum_t old_status = interrupt_get_status();
+	
+	CLI
+
+	return old_status;
+}
+
+/*
+ @brief 根据if位旧状态 设置if位
+ @retval if_sti/if_cli
+ */
+if_enum_t interrupt_set_status(if_enum_t status) {
+	return status & if_sti ? interrupt_enable() : interrupt_disable();
 }

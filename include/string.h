@@ -1,11 +1,11 @@
 #ifndef __STRING_H__
 #define __STRING_H__
 
-#include "./asm/system.h"
+#include "./stdint.h"
 
 extern char *strcpy(char *dest, const char *src);
 extern char *strcat(char *dest, const char *src);
-extern size_t strlen(char *str);
+extern size_t strlen(const char *str);
 extern int strcmp(const char *lhs, const char *rhs);
 extern char *strchr(const char *str, int ch);
 extern char *strrchr(const char *str, int ch);
