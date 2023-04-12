@@ -4,6 +4,7 @@
 #include "../include/asm/system.h"
 #include "../include/asm/io.h"
 #include "../include/string.h"
+#include "../include/kernel/mm.h"
 
 void _start(void) {
 	put_str("\rkernel!\r");
@@ -11,23 +12,14 @@ void _start(void) {
 	idt_init();
 	clock_init();
 
-	char str1[10] = "hello";
-	char str2[10] = "world";
-	char str[20] = {0};
-
-	strcpy(str, str1);
-	strcat(str, str2);
-	size_t len = strlen(str);
-	int ret = strcmp(str, str1);
-	char *ptr = strchr(str, 'w');
-	ptr = NULL;
-	ptr = strrchr(str, 'w');
-
-	ret = memcmp(str1, str, 6);
-	memset(str, 0, 5);
-	memcpy(str, str1, 5);
-	ptr = NULL;
-	ptr = memchr(str, 'w', 10);
+	print_check_memory_info();
+	physics_memory_init();
+	physics_memory_pool_init();
+	uint32_t *ptr = malloc_physics_page(&kernel_physics_pool);
+	free_physics_page(&kernel_physics_pool, ptr);
+	ptr = malloc_physics_page(&user_physics_pool);
+	free_physics_page(&user_physics_pool, ptr);
+	while(1);
 
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断

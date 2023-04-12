@@ -3,7 +3,7 @@
 PWD = /home/liuben/bliuProject/bliu_os#工程绝对路径
 BUILD = Build#编译生成文件存放路径
 
-DIRS = boot init kernel/chr_drv kernel/asm lib kernel
+DIRS = boot init kernel/chr_drv kernel/asm lib kernel mm
 OBJS_DIRS := $(addprefix ./$(BUILD)/, $(DIRS))
 DIRS := $(addprefix $(PWD)/, $(DIRS))
 
