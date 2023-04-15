@@ -141,7 +141,7 @@ setup_page:
 	sub eax, 0x1000
 	mov [PAGE_DIR_TABLE_POS + 0xFFC], eax ;最后一个页表存放页目录表本身 用于虚拟内存访问页目录表,页表
 
-;挂载0 - 1M物理内存
+;映射0 - 1M物理内存
 	mov ebx, PAGE_DIR_TABLE_POS
 	add ebx, 0x1000
 	mov ecx, 0x100

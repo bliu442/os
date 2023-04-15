@@ -15,10 +15,13 @@ void _start(void) {
 	print_check_memory_info();
 	physics_memory_init();
 	physics_memory_pool_init();
-	uint32_t *ptr = malloc_physics_page(&kernel_physics_pool);
-	free_physics_page(&kernel_physics_pool, ptr);
-	ptr = malloc_physics_page(&user_physics_pool);
-	free_physics_page(&user_physics_pool, ptr);
+
+	virtual_memory_init();
+	virtual_memory_pool_init();
+
+	uint32_t *ptr = malloc_kernel_page(2);
+	free_kernel_page(ptr, 2);
+
 	while(1);
 
 	STI

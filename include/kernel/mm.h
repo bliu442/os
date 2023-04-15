@@ -13,6 +13,8 @@
 #define OS_MEMORY_END 0x100000 //1M以下存放os代码
 #define KERNEL_PHYSICS_MEMORY_MAP 0xC0090000 //放到堆栈下面 堆栈0x9F000 + 0xC0000000 堆栈处于1M内存最高处
 
+#define KERNEL_VIRTUAL_MEMORY_START 0xC0100000 //放在os代码后面
+
 typedef struct ards_item {
 	uint32_t baseaddr_low32;
 	uint32_t baseaddr_high32;
@@ -42,12 +44,27 @@ typedef struct memory_pool {
 }memory_pool_t;
 extern memory_pool_t kernel_physics_pool;
 extern memory_pool_t user_physics_pool;
+extern memory_pool_t kernel_virtual_pool;
 
 extern void print_check_memory_info(void);
 
 extern void physics_memory_init(void);
 extern void physics_memory_pool_init(void);
+extern void virtual_memory_init(void);
+extern void virtual_memory_pool_init(void);
+
+/* 提供给malloc_page使用 */
 extern void *malloc_physics_page(memory_pool_t *pool);
 extern void free_physics_page(memory_pool_t *pool, void *physics_addr);
+
+extern uint32_t *get_pde_ptr(uint32_t virtual_addr);
+extern uint32_t *get_pte_ptr(uint32_t virtual_addr);
+extern void page_table_add(uint32_t virtual_addr,uint32_t physics_addr);
+extern void page_table_remove(pool_flag_t pf, uint32_t virtual_addr);
+
+extern void *malloc_page(pool_flag_t pf, uint32_t count);
+extern void free_page(pool_flag_t pf, void *virtual_addr_start, uint32_t count);
+extern void *malloc_kernel_page(uint32_t count);
+extern void free_kernel_page(void *virtual_addr, uint32_t count);
 
 #endif
