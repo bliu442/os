@@ -12,6 +12,9 @@
 #include "../../include/asm/io.h"
 #include "../../include/kernel/print.h"
 #include "../../include/asm/system.h"
+#include "../../include/kernel/sched.h"
+#include "../../include/kernel/thread.h"
+#include "../../include/kernel/debug.h"
 
 #define PIT_CHAN0_REG 0x40
 #define PIT_CTRL_REG 0x43
@@ -33,9 +36,14 @@ void clock_init(void) {
 }
 
 void clock_handler(void) {
-	BOCHS_DEBUG_MAGIC
-	BOCHS_DEBUG_MAGIC
+	task_t *current = running_thread();
+	ASSERT(current->magic != 0x5aa555aa)
 
-	put_str("clock interrupt!\r");
+	current->elapsed_ticks++;
+
+	if(current->ticks == 0)
+		schedule();
+	else
+		current->ticks--;
 }
 

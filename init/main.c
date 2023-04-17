@@ -8,6 +8,7 @@
 #include "../include/kernel/thread.h"
 
 extern void k_thread_a(void *arg);
+extern void k_thread_b(void *arg);
 
 void _start(void) {
 	put_str("\rkernel!\r");
@@ -22,16 +23,24 @@ void _start(void) {
 	virtual_memory_init();
 	virtual_memory_pool_init();
 
+	pthread_init();
 	thread_start("k_thread_a", 31, k_thread_a, "argA ");
-	while(1);
+	thread_start("k_thread_b", 8, k_thread_b, "argB ");
 
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断
 
-	while(1);
+	while(true)
+		put_str("main ");
 }
 
 void k_thread_a(void *arg) {
+	char *param = arg;
+	while(true)
+		put_str(param);
+}
+
+void k_thread_b(void *arg) {
 	char *param = arg;
 	while(true)
 		put_str(param);

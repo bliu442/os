@@ -3,6 +3,10 @@
 
 #include "../stdint.h"
 #include "./mm.h"
+#include "./list.h"
+
+extern list_t thread_ready_list;
+extern list_t thread_all_list;
 
 typedef void thread_fun_t(void *func_arg);
 
@@ -61,6 +65,8 @@ typedef struct task {
 	uint32_t priority; //优先级
 	uint32_t ticks; //时间片
 	uint32_t elapsed_ticks; //统计执行了多少时间片
+	list_item_t general_list_item; //链表节点 用于存入就绪/阻塞队列
+	list_item_t all_list_item; //链表节点 用于存入全部线程链表
 	char name[32];
 	uint32_t magic; //魔数 用于判断堆栈溢出
 }task_t;
@@ -70,8 +76,10 @@ typedef union task_union {
 	char stack[PAGE_SIZE];
 }task_union_t;
 
+extern task_t *running_thread(void);
 extern void thread_create(task_union_t *pthread, thread_fun_t function, void *func_arg);
 extern void thread_init(task_union_t *pthread, char *name, uint32_t priority);
-extern task_union_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void *func_arg);
+extern task_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void *func_arg);
+extern void pthread_init(void);
 
 #endif

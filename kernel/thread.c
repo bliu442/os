@@ -6,6 +6,13 @@
 #include "../include/kernel/thread.h"
 #include "../include/kernel/mm.h"
 #include "../include/string.h"
+#include "../include/asm/system.h"
+#include "../include/kernel/debug.h"
+#include "../include/kernel/print.h"
+
+task_union_t *main_thread;
+list_t thread_ready_list;
+list_t thread_all_list;
 
 /*
  @brief 执行线程函数
@@ -13,7 +20,15 @@
  @param func_arg 线程函数参数
  */
 static void kernel_thread(thread_fun_t *function, void *func_arg) {
+	STI //执行线程函数前到确保打开中断,让时钟中断产生,实现任务切换
 	function(func_arg);
+}
+
+/* @brief 获取当前运行的线程的pcb */
+task_t *running_thread(void) {
+	uint32_t esp = 0;
+	__asm__ ("mov %0, esp;" : "=g" (esp));
+	return ((task_t *)(esp & 0xFFFFF000));
 }
 
 /*
@@ -52,9 +67,17 @@ void thread_create(task_union_t *pthread, thread_fun_t function, void *func_arg)
  @param priority 线程优先级
  */
 void thread_init(task_union_t *pthread, char *name, uint32_t priority) {
+	if(pthread == main_thread) {
+		pthread->task.state = TASK_RUNNING;
+	} else {
+		pthread->task.state = TASK_READY;
+	}
+
 	strcpy(pthread->task.name, name);
 	pthread->task.state = TASK_RUNNING;
 	pthread->task.priority = priority;
+	pthread->task.ticks = priority;
+	pthread->task.elapsed_ticks = 0;
 	pthread->task.stack = (uint32_t)pthread + PAGE_SIZE;
 	pthread->task.magic = 0x000055aa;
 }
@@ -66,38 +89,37 @@ void thread_init(task_union_t *pthread, char *name, uint32_t priority) {
  @param function 线程函数
  @param func_arg 线程函数参数
  @retval 线程pcb结构体指针
-
- @note ret调用函数
- |func_arg|
- |function|
- |.retaddr|
-
- |.....eip| <-ret 将eip当作retaddr弹出到eip寄存器
- |.....esi|
- |.....edi|
- |.....ebx|
- |.....ebp| <-esp
-
- 1.将esp赋值为task.stack
- 2.pop四个数据到相应寄存器,esp指向eip
- 3.ret 将eip(kernel_thread)当作返回地址,传给eip寄存器,执行线程函数
- 目前esp指向retaddr 虽然kernel_thread是靠ret进入的,但执行时还是按照C语言规范 认为esp为返回地址 esp+4为第一个参数 esp+8为第二个参数
- 4.取到参数function func_arg,开始执行线程函数
  */
-task_union_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void *func_arg) {
+task_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void *func_arg) {
 	task_union_t *pthread = malloc_kernel_page(1);
 	memset(pthread, 0, PAGE_SIZE);
 
 	thread_init(pthread, name, priority);
 	thread_create(pthread, function, func_arg);
 
-	__asm__("mov esp, %0;"
-			"pop ebp;"
-			"pop ebx;"
-			"pop edi;"
-			"pop esi;"
-			"ret"
-			:
-			:"g" (pthread->task.stack)
-		);
+	ASSERT(!list_find_item(&thread_ready_list, &pthread->task.general_list_item));
+	list_append(&thread_ready_list, &pthread->task.general_list_item);
+	
+	ASSERT(!list_find_item(&thread_all_list, &pthread->task.all_list_item));
+	list_append(&thread_all_list, &pthread->task.all_list_item);
+
+	return (task_t *)pthread;
+}
+
+/* @brief 将已经存在的执行流main更改为线程 */
+static void make_main_thread(void) {
+	main_thread = (task_union_t *)running_thread();
+	thread_init(main_thread, "main", 31);
+
+	ASSERT(!list_find_item(&thread_all_list, &main_thread->task.all_list_item));
+	list_append(&thread_all_list, &main_thread->task.all_list_item);
+}
+
+/* @brief 初始化线程链表 添加main线程 */
+void pthread_init(void) {
+	put_str("pthread init \r");
+
+	list_init(&thread_ready_list);
+	list_init(&thread_all_list);
+	make_main_thread();
 }

@@ -125,10 +125,13 @@ static if_enum_t interrupt_enable(void) {
  @retval if_sti/if_cli
  */
 if_enum_t interrupt_disable(void) {
-	if_enum_t old_status = interrupt_get_status();
+	if_enum_t old_status;
+	if(if_sti == interrupt_get_status()) {
+		old_status = if_sti;
+		CLI
+	} else
+		old_status = if_cli;
 	
-	CLI
-
 	return old_status;
 }
 
