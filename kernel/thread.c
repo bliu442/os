@@ -9,6 +9,7 @@
 #include "../include/asm/system.h"
 #include "../include/kernel/debug.h"
 #include "../include/kernel/print.h"
+#include "../include/kernel/sched.h"
 
 task_union_t *main_thread;
 list_t thread_ready_list;
@@ -104,6 +105,38 @@ task_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void 
 	list_append(&thread_all_list, &pthread->task.all_list_item);
 
 	return (task_t *)pthread;
+}
+
+/*
+ @brief 线程阻塞
+ @param status 线程要更改到的状态
+ @note 线程阻塞是线程自己发起的动作 主动
+ */
+void thread_block(task_state_t status) {
+	CLI_FUNC
+
+	task_t *current = running_thread();
+	current->state = status;
+	schedule();
+
+	STI_FUNC
+}
+
+/*
+ @brief 解除线程阻塞状态
+ @param pthread 线程指针
+ @note 由持有临界资源的线程解除 被动
+ */
+void thread_unblock(task_t *pthread) {
+	CLI_FUNC
+
+	if(pthread->state != TASK_READY) {
+		ASSERT(!list_find_item(&thread_ready_list, &pthread->general_list_item))
+		list_push(&thread_ready_list, &pthread->general_list_item);
+		pthread->state = TASK_READY;
+	}
+
+	STI_FUNC
 }
 
 /* @brief 将已经存在的执行流main更改为线程 */

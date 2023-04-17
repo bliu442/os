@@ -24,24 +24,46 @@ void _start(void) {
 	virtual_memory_pool_init();
 
 	pthread_init();
+
+	console_init();
+
 	thread_start("k_thread_a", 31, k_thread_a, "argA ");
 	thread_start("k_thread_b", 8, k_thread_b, "argB ");
 
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断
 
-	while(true)
-		put_str("main ");
+	uint32_t i = 0x100000;
+	while(true) {
+		console_put_str("main ");
+		while(i--) {
+			__asm__("nop;");
+		}
+		i = 0x100000;
+	}
 }
 
 void k_thread_a(void *arg) {
 	char *param = arg;
-	while(true)
-		put_str(param);
+
+	uint32_t i = 0x100000;
+	while(true) {
+		console_put_str(param);
+		while(i--) {
+			__asm__("nop;");
+		}
+		i = 0x100000;
+	}
 }
 
 void k_thread_b(void *arg) {
 	char *param = arg;
-	while(true)
-		put_str(param);
+	uint32_t i = 0x100000;
+	while(true) {
+		console_put_str(param);
+		while(i--) {
+			__asm__("nop;");
+		}
+		i = 0x100000;
+	}
 }

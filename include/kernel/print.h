@@ -10,4 +10,8 @@ extern void put_int(uint32_t num);
 extern void console_init(void);
 extern void console_write(char *buf, uint32_t count);
 
+extern void console_put_char(char ch);
+extern void console_put_str(char *str);
+extern void console_put_int(uint32_t num);
+
 #endif

@@ -81,5 +81,7 @@ extern void thread_create(task_union_t *pthread, thread_fun_t function, void *fu
 extern void thread_init(task_union_t *pthread, char *name, uint32_t priority);
 extern task_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void *func_arg);
 extern void pthread_init(void);
+extern void thread_block(task_state_t status);
+extern void thread_unblock(task_t *pthread);
 
 #endif

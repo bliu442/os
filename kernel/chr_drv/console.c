@@ -3,6 +3,8 @@
 #include "../../include/stdint.h"
 #include "../../include/string.h"
 #include "../../include/asm/io.h"
+#include "../../include/kernel/sync.h"
+#include "../../include/kernel/print.h"
 
 #define CRT_ADDR_REG 0x3D4
 #define CRT_DATA_REG 0x3D5
@@ -29,6 +31,8 @@ static uint32_t x, y; //当前光标坐标
 #define ASCII_LF 0x0A // \n
 #define ASCII_CR 0x0D // \r
 
+static lock_t console_lock;
+
 /* @brief 设置屏幕显示起始字符位置 */
 static void set_screen(void) {
 	out_byte(CRT_ADDR_REG, CRT_START_ADDR_H);
@@ -53,9 +57,19 @@ void console_init(void) {
 	set_cursor();
 	set_screen();
 
+	lock_init(&console_lock);
+
 	uint16_t *ptr = (uint16_t *)VIDEO_MEM_START;
 	while((uint32_t)ptr < VIDEO_MEM_END)
 		*ptr++ = 0x0720;
+}
+
+static void console_acquire(void) {
+	lock_acquire(&console_lock);
+}
+
+static void console_release(void) {
+	lock_release(&console_lock);
 }
 
 /* @brief 向上滚动一行 */
@@ -106,6 +120,8 @@ static void command_bs(void) {
  @param count 输出长度
  */
 void console_write(char *buf, uint32_t count) {
+	console_acquire();
+
 	char ch;
 	char *ptr = (char *)pos;
 	
@@ -140,4 +156,24 @@ void console_write(char *buf, uint32_t count) {
 		}
 	}
 	set_cursor();
+
+	console_release();
+}
+
+void console_put_char(char ch) {
+	console_acquire();
+	put_char(ch);
+	console_release();
+}
+
+void console_put_str(char *str) {
+	console_acquire();
+	put_str(str);
+	console_release();
+}
+
+void console_put_int(uint32_t num) {
+	console_acquire();
+	put_int(num);
+	console_release();
 }
