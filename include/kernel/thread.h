@@ -67,6 +67,8 @@ typedef struct task {
 	uint32_t elapsed_ticks; //统计执行了多少时间片
 	list_item_t general_list_item; //链表节点 用于存入就绪/阻塞队列
 	list_item_t all_list_item; //链表节点 用于存入全部线程链表
+	uint32_t cr3; //进程页表管理
+	memory_pool_t user_virtual_pool; //进程虚拟地址管理
 	char name[32];
 	uint32_t magic; //魔数 用于判断堆栈溢出
 }task_t;
@@ -77,11 +79,10 @@ typedef union task_union {
 }task_union_t;
 
 extern task_t *running_thread(void);
-extern void thread_create(task_union_t *pthread, thread_fun_t function, void *func_arg);
-extern void thread_init(task_union_t *pthread, char *name, uint32_t priority);
 extern task_t *thread_start(char *name, uint32_t priority, thread_fun_t function, void *func_arg);
-extern void pthread_init(void);
 extern void thread_block(task_state_t status);
 extern void thread_unblock(task_t *pthread);
+
+extern void pthread_init(void);
 
 #endif

@@ -6,9 +6,15 @@
 #define DPL_0 (1)
 #define DPL_3 (3)
 #define PRESENT (1)
+#define G_4K (1)
+#define G_1B (0)
+#define D_B_32 (1)
+#define L_32 (0)
 #define S_CODE_DATA (1)
 #define S_SYS (0)
 #define TYPE_INTERRUPT_GATE (0b1110)
+#define TYPE_CODE (0b1000)
+#define TYPE_DATA (0b0010)
 
 //段选择子属性
 #define SELECTOR_RPL_0 (0)
@@ -18,6 +24,8 @@
 #define R0_CODE_SELECTOR (1 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_0)
 #define R0_DATA_SELECTOR (2 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_0)
 #define VIDEO_MEM_SELECTOR (3 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_0)
+#define R3_CODE_SELECTOR (4 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_3)
+#define R3_DATA_SELECTOR (5 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_3)
 
 typedef struct gdt_item {
 	uint16_t limit_low16;

@@ -7,6 +7,7 @@
 #include "../include/kernel/sync.h"
 #include "../include/asm/system.h"
 #include "../include/kernel/debug.h"
+#include "../include/kernel/thread.h"
 
 /*
  @brief 信号量初始化

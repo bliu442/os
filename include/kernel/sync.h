@@ -3,7 +3,8 @@
 
 #include "./list.h"
 #include "../stdint.h"
-#include "./thread.h"
+
+typedef struct task task_t;
 
 /* 信号量 */
 typedef struct semaphore {

@@ -21,6 +21,8 @@
 #include "../include/kernel/print.h"
 #include "../include/kernel/debug.h"
 #include "../include/string.h"
+#include "../include/kernel/thread.h"
+#include "../include/asm/system.h"
 
 #define PDE_INDEX(virtual_addr) (virtual_addr >> 22)
 #define PTE_INDEX(virtual_addr) (virtual_addr >> 12 & 0x3FF)
@@ -81,7 +83,8 @@ static void *malloc_virtual_page(pool_flag_t pf, uint32_t count) {
 	if(pf == pf_kernel) {
 		pool = &kernel_virtual_pool;
 	} else if(pf == pf_user) {
-
+		task_t *current = running_thread();
+		pool = &current->user_virtual_pool;
 	}
 
 	bit_index = bitmap_continuous_scan(&pool->pool_bitmap, count);
@@ -111,7 +114,8 @@ static void free_virtual_page(pool_flag_t pf, void *virtual_addr, uint32_t count
 	if(pf == pf_kernel) {
 		pool = &kernel_virtual_pool;
 	} else if(pf == pf_user) {
-
+		task_t *current = running_thread();
+		pool = &current->user_virtual_pool;
 	}
 
 	ASSERT((uint32_t)virtual_addr > pool->addr_start || (uint32_t)virtual_addr < pool->addr_end);
@@ -252,14 +256,80 @@ void free_page(pool_flag_t pf, void *virtual_addr_start, uint32_t count) {
 		page_table_remove(pf, virtual_addr + free_count++ * PAGE_SIZE);
 }
 
+/*
+ @brief 申请一页物理内存,并将virtual_addr映射到该地址
+ @param pf 内核/用户物理内存池
+ @param virtual_addr 指定的虚拟地址
+ @retval 虚拟地址
+ @note 可以指定虚拟地址,申请一页物理页映射到该地址处
+ malloc_kernel/user_page 是内存管理模块分配的地址
+ 
+ 1.设置虚拟内存池相应位为到bitmap_used
+ 2.物理内存池中申请物理内存
+ 3.在页表中完成映射
+ */
+void *malloc_a_page(pool_flag_t pf, uint32_t virtual_addr) {
+	memory_pool_t *physics_pool = pf & pf_user ? &user_physics_pool : &kernel_physics_pool;
+	lock_acquire(&physics_pool->pool_lock);
+
+	task_t *current = running_thread();
+	uint32_t bit_index = -1;
+	memory_pool_t *virtual_pool = NULL;
+
+	if(current->cr3 != 0 && pf == pf_user) { //用户进程
+		virtual_pool = &current->user_virtual_pool;
+	} else if(current->cr3 == 0 && pf == pf_kernel) { //内核线程
+		virtual_pool = &kernel_virtual_pool;
+	} else {
+		PANIC("malloc a page error!\r");
+	}
+
+	bit_index = (virtual_addr - virtual_pool->addr_start) / PAGE_SIZE;
+	ASSERT(bit_index > 0);
+	ASSERT(bitmap_used != bitmap_scan(&virtual_pool->pool_bitmap, bit_index));
+	bitmap_set(&virtual_pool->pool_bitmap, bit_index, bitmap_used);
+
+	void *physics_addr = malloc_physics_page(physics_pool);
+	if(physics_addr == NULL)
+		return NULL;
+
+	BOCHS_DEBUG_MAGIC //查看页表
+	BOCHS_DEBUG_MAGIC
+	page_table_add(virtual_addr, (uint32_t)physics_addr);
+	BOCHS_DEBUG_MAGIC
+
+	lock_release(&physics_pool->pool_lock);
+	return (void *)virtual_addr;
+}
+
 void *malloc_kernel_page(uint32_t count) {
+	lock_acquire(&kernel_physics_pool.pool_lock);
 	void *virtual_addr = malloc_page(pf_kernel, count);
 	if(virtual_addr != NULL)
 		memset(virtual_addr, 0, count * PAGE_SIZE);
 	
+	lock_release(&kernel_physics_pool.pool_lock);
 	return virtual_addr;
 }
 
 void free_kernel_page(void *virtual_addr, uint32_t count) {
+	lock_acquire(&kernel_physics_pool.pool_lock);
 	free_page(pf_kernel, virtual_addr, count);
+	lock_release(&kernel_physics_pool.pool_lock);
+}
+
+void *malloc_user_page(uint32_t count) {
+	lock_acquire(&user_physics_pool.pool_lock);
+	void *virtual_addr = malloc_page(pf_user, count);
+	if(virtual_addr != NULL)
+		memset(virtual_addr, 0, count * PAGE_SIZE);
+	
+	lock_release(&user_physics_pool.pool_lock);
+	return virtual_addr;
+}
+
+void free_user_page(void *virtual_addr, uint32_t count) {
+	lock_acquire(&user_physics_pool.pool_lock);
+	free_page(pf_user, virtual_addr, count);
+	lock_release(&user_physics_pool.pool_lock);
 }

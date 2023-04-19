@@ -123,6 +123,9 @@ void physics_memory_pool_init(void) {
 	bitmap_init(&kernel_physics_pool.pool_bitmap);
 	bitmap_init(&user_physics_pool.pool_bitmap);
 
+	lock_init(&kernel_physics_pool.pool_lock);
+	lock_init(&user_physics_pool.pool_lock);
+
 	/* 已经使用的物理页 : 1页目录表 + 1页表 + (256 - 2)页表 第一个页表 = 1页表,最后一个页表为页目录表 */
 	for(uint32_t loop = 0;loop < 256;++loop) {
 		bitmap_set(&kernel_physics_pool.pool_bitmap, loop, bitmap_used);

@@ -24,7 +24,7 @@ compiling:
 all:$(HD_IMG) $(BUILD)/system.bin
 	dd if=./$(BUILD)/boot/mbr.bin of=$(HD_IMG) bs=512 seek=0 count=1 conv=notrunc
 	dd if=./$(BUILD)/boot/setup.bin of=$(HD_IMG) bs=512 seek=1 count=4 conv=notrunc
-	dd if=./$(BUILD)/system.bin of=$(HD_IMG) bs=512 seek=5 count=60 conv=notrunc
+	dd if=./$(BUILD)/system.bin of=$(HD_IMG) bs=512 seek=5 count=80 conv=notrunc
 
 clean:
 	rm -rf $(RMS)

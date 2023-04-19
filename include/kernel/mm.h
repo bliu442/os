@@ -3,6 +3,7 @@
 
 #include "../stdint.h"
 #include "./bitmap.h"
+#include "./sync.h"
 
 #define PAGE_SIZE 4096
 
@@ -35,6 +36,7 @@ typedef enum pool_flag {
 
 typedef struct memory_pool {
 	bitmap_t pool_bitmap; //位图管理
+	lock_t pool_lock;
 	uint32_t addr_start; //可用内存起始地址
 	uint32_t valid_memory_size; //可用内存大小
 	uint32_t addr_end; //可用内存结束地址
@@ -64,7 +66,10 @@ extern void page_table_remove(pool_flag_t pf, uint32_t virtual_addr);
 
 extern void *malloc_page(pool_flag_t pf, uint32_t count);
 extern void free_page(pool_flag_t pf, void *virtual_addr_start, uint32_t count);
+extern void *malloc_a_page(pool_flag_t pf, uint32_t virtual_addr);
 extern void *malloc_kernel_page(uint32_t count);
 extern void free_kernel_page(void *virtual_addr, uint32_t count);
+extern void *malloc_user_page(uint32_t count);
+extern void free_user_page(void *virtual_addr, uint32_t count);
 
 #endif

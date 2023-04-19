@@ -6,6 +6,7 @@
 #include "../include/string.h"
 #include "../include/kernel/mm.h"
 #include "../include/kernel/thread.h"
+#include "../include/kernel/debug.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
@@ -14,6 +15,7 @@ void _start(void) {
 	put_str("\rkernel!\r");
 	pic_init();
 	idt_init();
+	gdt_init();
 	clock_init();
 
 	print_check_memory_info();
@@ -25,17 +27,23 @@ void _start(void) {
 
 	pthread_init();
 
-	console_init();
+	console_init(); //之后使用C语言写的显卡驱动
+	printk_init();
 
 	thread_start("k_thread_a", 31, k_thread_a, "argA ");
 	thread_start("k_thread_b", 8, k_thread_b, "argB ");
+
+	printk("malloc a page : %x\r", 0xC0110000);
+	malloc_a_page(pf_kernel, 0xC0110000);
+	
+	ASSERT(1 != 1);
 
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断
 
 	uint32_t i = 0x100000;
 	while(true) {
-		console_put_str("main ");
+		printk("main ");
 		while(i--) {
 			__asm__("nop;");
 		}
@@ -44,11 +52,9 @@ void _start(void) {
 }
 
 void k_thread_a(void *arg) {
-	char *param = arg;
-
 	uint32_t i = 0x100000;
 	while(true) {
-		console_put_str(param);
+		printk("argA ");
 		while(i--) {
 			__asm__("nop;");
 		}
@@ -57,10 +63,9 @@ void k_thread_a(void *arg) {
 }
 
 void k_thread_b(void *arg) {
-	char *param = arg;
 	uint32_t i = 0x100000;
 	while(true) {
-		console_put_str(param);
+		printk("argB ");
 		while(i--) {
 			__asm__("nop;");
 		}

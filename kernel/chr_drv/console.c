@@ -123,9 +123,9 @@ void console_write(char *buf, uint32_t count) {
 	console_acquire();
 
 	char ch;
-	char *ptr = (char *)pos;
-	
+
 	while(count--) {
+		char *ptr = (char *)pos;
 		ch = *buf++;
 		switch(ch) {
 			case ASCII_BS:
@@ -142,8 +142,8 @@ void console_write(char *buf, uint32_t count) {
 			default:
 				if(x >= WIDTH) {
 					x -= WIDTH;
+					pos -= ROW_SIZE;
 					command_lf();
-					command_cr();
 				}
 
 				*ptr++ = ch;
@@ -152,7 +152,6 @@ void console_write(char *buf, uint32_t count) {
 				pos += 2;
 				++x;
 				break;
-				
 		}
 	}
 	set_cursor();

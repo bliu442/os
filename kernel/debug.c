@@ -3,6 +3,7 @@
 #include "../include/kernel/print.h"
 #include "../include/asm/system.h"
 
+#if 0
 /* @brief 打印错误信息 */
 void panic_spin(uint8_t *filename, int line, uint8_t *function, uint8_t *condition) {
 	CLI;
@@ -22,3 +23,15 @@ void panic_spin(uint8_t *filename, int line, uint8_t *function, uint8_t *conditi
 	put_char('\r');
 	while(1);
 }
+#else
+void panic_spin(uint8_t *filename, int line, uint8_t *function, uint8_t *condition) {
+	CLI;
+
+	printk("\r*************error!!!*************\r");
+	printk("filename : %s\r", filename);
+	printk("line : %d\r", line);
+	printk("function : %s\r", function);
+	printk("condition : %s\r", condition);
+	while(1);
+}
+#endif
