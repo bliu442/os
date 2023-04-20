@@ -3,6 +3,15 @@
 
 #include "../stdint.h"
 
+/* eflags寄存器 */
+#define EFLAGS_MBS (1 << 1)
+#define EFLAGS_IF (1 << 9)
+#define EFLAGS_IF_1 (1 << 9)
+#define EFLAGS_IF_0 (0 << 9)
+#define EFLAGS_IOPL_3 (3 << 12)
+#define EFLAGS_IOPL_0 (0 << 12)
+#define GET_EFLAGS(EFLAGS_VAR) __asm__ __volatile__("pushfd; pop %0" : "=g" (EFLAGS_VAR))
+
 #define DPL_0 (1)
 #define DPL_3 (3)
 #define PRESENT (1)

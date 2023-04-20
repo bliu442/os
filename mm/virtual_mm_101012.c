@@ -131,6 +131,16 @@ static void free_virtual_page(pool_flag_t pf, void *virtual_addr, uint32_t count
 }
 
 /*
+ @brief 获取虚拟地址对应的物理地址
+ @param virtual_addr 虚拟地址
+ @retval 物理地址
+ */
+uint32_t addr_virtual2physics(uint32_t virtual_addr) {
+	uint32_t *pte = get_pte_ptr(virtual_addr);
+	return ((*pte & 0xFFFFF000) + (virtual_addr & 0xFFF));
+}
+
+/*
  @brief 构造虚拟地址访问virtual_addr的pde
  @param virtual_addr 虚拟地址
  @retval virtual_addr的pde指针 指针是个虚拟地址,程序中可以使用
@@ -162,7 +172,7 @@ uint32_t *get_pde_ptr(uint32_t virtual_addr) {
  5.构造的地址 = (0x3FF << 22) + (pde_index << 12) + virtual_addr的pte的页内偏移地址
  */
 uint32_t *get_pte_ptr(uint32_t virtual_addr) {
-	uint32_t *pte = (uint32_t *)(0xFFC00000 + ((PDE_INDEX(virtual_addr) >> 10) + PTE_INDEX(virtual_addr) * 4));
+	uint32_t *pte = (uint32_t *)(0xFFC00000 + ((PDE_INDEX(virtual_addr) << 12) + PTE_INDEX(virtual_addr) * 4));
 	return pte;
 }
 
@@ -183,6 +193,9 @@ void page_table_add(uint32_t virtual_addr,uint32_t physics_addr) {
 
 		/* pte是ptt的子项,将低12位清理可访问到ptt */
 		memset((void *)((uint32_t)pte & 0xFFFFF000), 0, PAGE_SIZE); //清零,防止页表混乱
+		BOCHS_DEBUG_MAGIC
+		BOCHS_DEBUG_MAGIC
+		BOCHS_DEBUG_MAGIC
 		*pte = (physics_addr | 0x7);
 	}
 }

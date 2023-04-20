@@ -8,9 +8,6 @@
 #define PIC_S_CTRL 0xA0
 #define PIC_S_DATA 0xA1
 
-#define EFLAGS_IF (1 << 9)
-#define GET_EFLAGS(EFLAGS_VAR) __asm__ __volatile__("pushfd; pop %0" : "=g" (EFLAGS_VAR))
-
 typedef enum if_enmu {
 	if_cli, //0 关中断
 	if_sti, //1 开中断

@@ -7,9 +7,11 @@
 #include "../include/kernel/mm.h"
 #include "../include/kernel/thread.h"
 #include "../include/kernel/debug.h"
+#include "../include/kernel/process.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
+extern void u_process_a(void);
 
 void _start(void) {
 	put_str("\rkernel!\r");
@@ -32,11 +34,7 @@ void _start(void) {
 
 	thread_start("k_thread_a", 31, k_thread_a, "argA ");
 	thread_start("k_thread_b", 8, k_thread_b, "argB ");
-
-	printk("malloc a page : %x\r", 0xC0110000);
-	malloc_a_page(pf_kernel, 0xC0110000);
-	
-	ASSERT(1 != 1);
+	process_start(u_process_a, "u_process_a");
 
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断
@@ -71,4 +69,11 @@ void k_thread_b(void *arg) {
 		}
 		i = 0x100000;
 	}
+}
+
+void u_process_a(void) {
+	CLI
+	CLI
+	CLI
+	while(true);
 }

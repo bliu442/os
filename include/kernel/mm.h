@@ -7,11 +7,19 @@
 
 #define PAGE_SIZE 4096
 
+/* 页目录项,页表项属性 */
+#define PAGE_P (1)
+#define PAGE_RW_R (0 << 1)
+#define PAGE_RW_W (1 << 1)
+#define PAGE_US_S (0 << 2)
+#define PAGE_US_U (1 << 2)
+
 /* 内存分布 */
 #define ARDS_ADDR 0x1002 //bios中断检测内存
 #define ARDS_TIMES_ADDR 0x1000
 
 #define OS_MEMORY_END 0x100000 //1M以下存放os代码
+#define OS_PAGE_DIR_TABLE_POS 0x100000 //setup os页目录表
 #define KERNEL_PHYSICS_MEMORY_MAP 0xC0090000 //放到堆栈下面 堆栈0x9F000 + 0xC0000000 堆栈处于1M内存最高处
 
 #define KERNEL_VIRTUAL_MEMORY_START 0xC0100000 //放在os代码后面
@@ -59,6 +67,7 @@ extern void virtual_memory_pool_init(void);
 extern void *malloc_physics_page(memory_pool_t *pool);
 extern void free_physics_page(memory_pool_t *pool, void *physics_addr);
 
+extern uint32_t addr_virtual2physics(uint32_t virtual_addr);
 extern uint32_t *get_pde_ptr(uint32_t virtual_addr);
 extern uint32_t *get_pte_ptr(uint32_t virtual_addr);
 extern void page_table_add(uint32_t virtual_addr,uint32_t physics_addr);

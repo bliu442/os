@@ -6,6 +6,7 @@
 #include "../include/asm/io.h"
 #include "../include/kernel/print.h"
 #include "../include/asm/system.h"
+#include "../include/kernel/global.h"
 
 char *messages[] = {
 	"#DE Divide Error",

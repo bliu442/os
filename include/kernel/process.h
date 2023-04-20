@@ -34,4 +34,7 @@ typedef struct tss {
 	uint32_t io_base;
 }__attribute__((packed)) tss_t;
 
+extern void process_start(void *filename, char *name);
+extern void process_activate(task_t *process);
+
 #endif

@@ -3,6 +3,7 @@
 #include "../include/kernel/thread.h"
 #include "../include/asm/system.h"
 #include "../include/kernel/debug.h"
+#include "../include/kernel/process.h"
 
 extern void switch_to(task_t *current, task_t *next); //see sched.asm
 
@@ -28,6 +29,10 @@ void schedule(void) {
 	
 	task_t *next = item2entry(task_t, general_list_item, thread_list_next_item);
 	next->state = TASK_RUNNING;
+
+	/* 更改cr3寄存器的值,实现虚拟地址的隔离 */
+	process_activate(next);
+
 	/*
 	 @note 调用汇编函数switch_to
 	 @note 堆栈图
