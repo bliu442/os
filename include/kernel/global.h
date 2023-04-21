@@ -12,6 +12,7 @@
 #define EFLAGS_IOPL_0 (0 << 12)
 #define GET_EFLAGS(EFLAGS_VAR) __asm__ __volatile__("pushfd; pop %0" : "=g" (EFLAGS_VAR))
 
+/* GDT IDT */
 #define DPL_0 (1)
 #define DPL_3 (3)
 #define PRESENT (1)
@@ -24,6 +25,7 @@
 #define TYPE_INTERRUPT_GATE (0b1110)
 #define TYPE_CODE (0b1000)
 #define TYPE_DATA (0b0010)
+#define TYPE_TSS (0b1001)
 
 //段选择子属性
 #define SELECTOR_RPL_0 (0)
@@ -35,6 +37,7 @@
 #define VIDEO_MEM_SELECTOR (3 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_0)
 #define R3_CODE_SELECTOR (4 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_3)
 #define R3_DATA_SELECTOR (5 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_3)
+#define TSS_SELECTOR (6 << 3 | SELECTOR_TI_GDT | SELECTOR_RPL_0)
 
 typedef struct gdt_item {
 	uint16_t limit_low16;

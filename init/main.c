@@ -13,6 +13,8 @@ extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
 extern void u_process_a(void);
 
+uint32_t test_var_a;
+
 void _start(void) {
 	put_str("\rkernel!\r");
 	pic_init();
@@ -52,7 +54,7 @@ void _start(void) {
 void k_thread_a(void *arg) {
 	uint32_t i = 0x100000;
 	while(true) {
-		printk("argA ");
+		printk("%s:%#x\r", "u_process_a", test_var_a);
 		while(i--) {
 			__asm__("nop;");
 		}
@@ -72,8 +74,6 @@ void k_thread_b(void *arg) {
 }
 
 void u_process_a(void) {
-	CLI
-	CLI
-	CLI
-	while(true);
+	while(true)
+		test_var_a++;
 }

@@ -13,13 +13,12 @@
 #include "../include/asm/system.h"
 #include "../include/kernel/print.h"
 #include "../include/kernel/debug.h"
+#include "../include/kernel/traps.h"
 
 #define USER_VIRTUAL_MEMORY_START 0xB0000000 //暂定
 #define USER_STACK 0xC0000000
 
 #define DIV_ROUND_UP(X, STEP) (((X) + (STEP) - 1) / (STEP))
-
-tss_t tss; //所有任务使用同一个tss,只用r0堆栈,切换任务时加载不同任务的r0堆栈
 
 /*
  @brief 构建用户进程上下文堆栈 使用中断返回执行进程函数,回到到用户态
