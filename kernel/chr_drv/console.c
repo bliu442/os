@@ -118,13 +118,16 @@ static void command_bs(void) {
  @brief 向屏幕输出 特殊字符只实现换行 回车 删除
  @param buf 要输出的字符串首地址
  @param count 输出长度
+ @retval 输出字符个数
  */
-void console_write(char *buf, uint32_t count) {
+int console_write(char *buf, uint32_t count) {
 	console_acquire();
 
 	char ch;
+	int write_size = 0;
 
 	while(count--) {
+		write_size++;
 		char *ptr = (char *)pos;
 		ch = *buf++;
 		switch(ch) {
@@ -157,6 +160,7 @@ void console_write(char *buf, uint32_t count) {
 	set_cursor();
 
 	console_release();
+	return write_size;
 }
 
 void console_put_char(char ch) {

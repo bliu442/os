@@ -8,12 +8,11 @@
 #include "../include/kernel/thread.h"
 #include "../include/kernel/debug.h"
 #include "../include/kernel/process.h"
+#include "../include/unistd.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
 extern void u_process_a(void);
-
-uint32_t test_var_a;
 
 void _start(void) {
 	put_str("\rkernel!\r");
@@ -54,7 +53,7 @@ void _start(void) {
 void k_thread_a(void *arg) {
 	uint32_t i = 0x100000;
 	while(true) {
-		printk("%s:%#x\r", "u_process_a", test_var_a);
+		printk("argA ");
 		while(i--) {
 			__asm__("nop;");
 		}
@@ -74,6 +73,13 @@ void k_thread_b(void *arg) {
 }
 
 void u_process_a(void) {
+	char *str = "hello world ";
+	/*
+	 1.write 设置寄存器,触发软中断
+	 2.syscall_entry 构建堆栈,调用sys_write
+	 3.sys_write实现功能 返回syscall_entry
+	 4.syscall_entry 修改eax,返回用户态
+	 */
 	while(true)
-		test_var_a++;
+		write(STDOUT_FILENO, str, strlen(str));
 }

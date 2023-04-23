@@ -4,6 +4,7 @@
 
 extern int interrupt_handler_table[0x30]; //see interrupt_handler.asm
 extern void interrupt_handler_default(void); //see interrupt_handler.asm
+extern void syscall_entry(void); //see interrupt_handler.asm
 
 #define IDT_SIZE 256
 
@@ -23,12 +24,15 @@ void idt_init(void) {
 		if(i < 0x30)
 			handler = (uint32_t)interrupt_handler_table[i];
 
+		if(i == 0x80)
+			handler = (uint32_t)syscall_entry;
+
 		ptr->offset_low16 = handler & 0xFFFF;
 		ptr->selector = R0_CODE_SELECTOR;
 		ptr->reserved = 0;
 		ptr->type = TYPE_INTERRUPT_GATE;
 		ptr->segment = S_SYS;
-		ptr->DPL = DPL_0;
+		ptr->DPL = (0x80 == i) ? DPL_3 : DPL_0;
 		ptr->present = PRESENT;
 		ptr->offset_high16 = handler >> 16 & 0xFFFF;
 	}

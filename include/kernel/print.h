@@ -14,7 +14,7 @@ extern void console_put_char(char ch);
 extern void console_put_str(char *str);
 extern void console_put_int(uint32_t num);
 
-extern void console_write(char *buf, uint32_t count);
+extern int console_write(char *buf, uint32_t count);
 extern int vsprintf(char *buf, const char *fmt, va_list args);
 
 extern void printk_init(void);

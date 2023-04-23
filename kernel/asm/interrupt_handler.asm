@@ -10,6 +10,7 @@
 extern exception_handler ;see interrupt.h
 extern put_str ;see print.h
 extern clock_handler ;see interrupt.h
+extern syscall_table ;see syscall.c
 
 section .data
 global interrupt_handler_table
@@ -120,6 +121,42 @@ INTERRUPT_HANDLER 0x2C, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2D, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2E, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2F, IDT_INDEX, interrupt_handler_default
+
+global syscall_entry
+syscall_entry:
+	push 0 ;压入错误号
+	push 0x80 ;压入中断向量号 跟INTERRUPT_HANDLER保持一致
+
+	pushad
+
+	push ds
+	push es
+	push fs
+	push gs
+
+	;调用syscall_table函数 堆栈
+	;|.......edx|
+	;|.......ecx|
+	;|.......ebx|
+	;|...retaddr|
+	;进入sys_write函数
+	push edx
+	push ecx
+	push ebx
+	call [syscall_table + eax * 4]
+	add esp, 0xC
+	mov [esp + 11 * 4], eax ;将函数返回值放入栈中eax寄存器中,返回用户态时充当函数返回值
+	
+	pop gs
+	pop fs
+	pop es
+	pop ds
+
+	popad
+
+	add esp, 8 ;平栈,让栈顶指向eip
+
+	iret
 
 section .text
 global interrupt_handler_default
