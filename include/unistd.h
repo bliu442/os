@@ -1,6 +1,8 @@
 #ifndef __UNISTD_H__
 #define __UNISTD_H__
 
+#include "./stdint.h"
+
 extern int errno;
 
 #define STDIN_FILENO 0
@@ -8,8 +10,10 @@ extern int errno;
 #define STDERR_FILENO 2
 
 #define __NR_write 0
+#define __NR_get_pid 1
 
 extern int write(int fd, const char *buf, int count);
+extern pid_t get_pid(void);
 
 #define _syscall0(type, name) \
 type name(void) \

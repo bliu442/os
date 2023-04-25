@@ -75,22 +75,13 @@ void pic_init(void) {
 void exception_handler(uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, uint32_t edi, uint32_t esi,
 	uint32_t ebp, uint32_t esp, uint32_t ebx, uint32_t edx, uint32_t ecx, uint32_t eax,
 	uint32_t idt_index, uint32_t error_code, uint32_t eip, uint32_t cs, uint32_t eflags) {
-	put_char('\r');
-	put_str("EXCEPTION : ");
-	put_str(messages[idt_index]);
-	put_char('\r');
-	put_str("idt_index : ");
-	put_int(idt_index);
-	put_char('\r');
-	put_str("eip       : ");
-	put_int(eip);
-	put_char('\r');
-	put_str("cs        : ");
-	put_int(cs);
-	put_char('\r');
-	put_str("eflags    : ");
-	put_int(eflags);
-	put_char('\r');
+    printk("\r=============================\r");
+    printk("EXCEPTION : %s\r", messages[idt_index]);
+    printk("   VECTOR : %#x\r", idt_index);
+    printk("   EFLAGS : %#x\r", eflags);
+    printk("       CS : %#x\r", cs);
+    printk("      EIP : %#x\r", eip);
+    printk("      ESP : %#x\r", esp);
 
 	while(true);
 }

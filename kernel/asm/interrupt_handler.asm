@@ -8,7 +8,7 @@
 %define IDT_INDEX push 0
 
 extern exception_handler ;see interrupt.h
-extern put_str ;see print.h
+extern printk ;see print.h
 extern clock_handler ;see interrupt.h
 extern syscall_table ;see syscall.c
 
@@ -162,7 +162,7 @@ section .text
 global interrupt_handler_default
 interrupt_handler_default:
 	push msg
-	call put_str
+	call printk
 	add esp, 4
 
 	iret

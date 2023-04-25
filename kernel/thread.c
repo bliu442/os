@@ -14,6 +14,7 @@
 task_union_t *main_thread;
 list_t thread_ready_list;
 list_t thread_all_list;
+lock_t pid_lock;
 
 /*
  @brief 执行线程函数
@@ -30,6 +31,20 @@ task_t *running_thread(void) {
 	uint32_t esp = 0;
 	__asm__ ("mov %0, esp;" : "=g" (esp));
 	return ((task_t *)(esp & 0xFFFFF000));
+}
+
+/* 获取当前任务pid */
+pid_t thread_get_pid(void) {
+	return running_thread()->pid;
+}
+
+/* brief 申请pid */
+static pid_t thread_allocate_pid(void) {
+	static pid_t pid = 0;
+	lock_acquire(&pid_lock);
+	pid++;
+	lock_release(&pid_lock);
+	return pid;
 }
 
 /*
@@ -79,6 +94,7 @@ void thread_init(task_union_t *pthread, char *name, uint32_t priority) {
 	pthread->task.priority = priority;
 	pthread->task.ticks = priority;
 	pthread->task.elapsed_ticks = 0;
+	pthread->task.pid = thread_allocate_pid();
 	pthread->task.stack = (uint32_t)pthread + PAGE_SIZE;
 	pthread->task.magic = 0x000055aa;
 }
@@ -154,5 +170,6 @@ void pthread_init(void) {
 
 	list_init(&thread_ready_list);
 	list_init(&thread_all_list);
+	lock_init(&pid_lock);
 	make_main_thread();
 }

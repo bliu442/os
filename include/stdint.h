@@ -12,6 +12,8 @@
 typedef unsigned int size_t;
 typedef unsigned int ssize_t;
 
+typedef unsigned int pid_t;
+
 typedef unsigned long long uint64_t;
 typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;

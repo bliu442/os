@@ -9,6 +9,8 @@
 #include "../include/kernel/debug.h"
 #include "../include/kernel/process.h"
 #include "../include/unistd.h"
+#include "../include/kernel/syscall.h"
+#include "../include/stdio.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
@@ -40,46 +42,23 @@ void _start(void) {
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断
 
-	uint32_t i = 0x100000;
-	while(true) {
-		printk("main ");
-		while(i--) {
-			__asm__("nop;");
-		}
-		i = 0x100000;
-	}
+	printk("main pid : %#x\r", sys_get_pid());
+	while(1);
 }
 
 void k_thread_a(void *arg) {
-	uint32_t i = 0x100000;
-	while(true) {
-		printk("argA ");
-		while(i--) {
-			__asm__("nop;");
-		}
-		i = 0x100000;
-	}
+	printk("k_thread_a pid : %#x\r", sys_get_pid());
+	while(1);
 }
 
 void k_thread_b(void *arg) {
-	uint32_t i = 0x100000;
-	while(true) {
-		printk("argB ");
-		while(i--) {
-			__asm__("nop;");
-		}
-		i = 0x100000;
-	}
+	printk("k_thread_b pid : %#x\r", sys_get_pid());
+	while(1);
 }
 
 void u_process_a(void) {
-	char *str = "hello world ";
-	/*
-	 1.write 设置寄存器,触发软中断
-	 2.syscall_entry 构建堆栈,调用sys_write
-	 3.sys_write实现功能 返回syscall_entry
-	 4.syscall_entry 修改eax,返回用户态
-	 */
-	while(true)
-		write(STDOUT_FILENO, str, strlen(str));
+	pid_t pid = get_pid();
+
+	printf("u_process_a pid : %#x\r", pid);
+	while(1);
 }
