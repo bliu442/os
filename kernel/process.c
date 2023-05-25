@@ -124,6 +124,21 @@ void create_user_virtual_memory_pool(task_t *process) {
 	bitmap_init(&process->user_virtual_pool.pool_bitmap);
 }
 
+static void user_bucket_dir_init(task_t *process) {
+	uint32_t len = sizeof(process->user_bucket_dir) / sizeof(process->user_bucket_dir[0]);
+	uint32_t loop = 0;
+	uint32_t size = 16;
+
+	for(loop = 0;loop < len - 1;++loop) {
+		process->user_bucket_dir[loop].size = size;
+		process->user_bucket_dir[loop].chain = NULL;
+		size *= 2;
+	}
+
+	process->user_bucket_dir[9].size = 0;
+	process->user_bucket_dir[9].chain = NULL;
+}
+
 /* 
  @brief 创建用户进程
  @note pcb由内核维护
@@ -140,6 +155,7 @@ void process_start(void *filename, char *name) {
 
 	process->task.cr3 = process_create_pdt();
 	create_user_virtual_memory_pool((task_t *)process);
+	user_bucket_dir_init((task_t *)process);
 
 	CLI_FUNC
 	ASSERT(!list_find_item(&thread_ready_list, &process->task.general_list_item));

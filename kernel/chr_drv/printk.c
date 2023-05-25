@@ -28,7 +28,7 @@ int printk(const char *fmt, ...) {
 	i = vsprintf(buf, fmt, args);
 	va_end(args);
 
-	console_write(buf, i);
+	i = console_write(buf, i);
 
 	lock_release(&printk_buf_lock);
 	return i;

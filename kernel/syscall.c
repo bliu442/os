@@ -9,6 +9,8 @@
 void *syscall_table[SYSCALL_TABLE_SIZE] = {
 	sys_write,
 	sys_get_pid,
+	sys_malloc,
+	sys_free
 };
 
 ssize_t sys_write(int fd, const void *buf, size_t count) {
@@ -17,4 +19,13 @@ ssize_t sys_write(int fd, const void *buf, size_t count) {
 
 pid_t sys_get_pid(void) {
 	return thread_get_pid();
+}
+
+void *sys_malloc(size_t size) {
+	return kmalloc(size);
+}
+
+void sys_free(void *addr, size_t size) {
+	kfree(addr, size);
+	return;
 }

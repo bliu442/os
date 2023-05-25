@@ -11,6 +11,8 @@ extern int errno;
 
 #define __NR_write 0
 #define __NR_get_pid 1
+#define __NR_malloc 2
+#define __NR_free 3
 
 extern int write(int fd, const char *buf, int count);
 extern pid_t get_pid(void);

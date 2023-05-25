@@ -56,6 +56,20 @@ extern memory_pool_t kernel_physics_pool;
 extern memory_pool_t user_physics_pool;
 extern memory_pool_t kernel_virtual_pool;
 
+/* malloc内存管理 */
+typedef struct bucket_desc {
+	void *page; //管理的内存页地址,释放的时候用
+	struct bucket_desc *next; //下一个bucket descriptor地址 构成链表
+	void *freeptr; //可供分配的内存块地址
+	unsigned short refcnt; //计数,释放内存页时用
+	unsigned short bucket_size; //桶内存块大小
+}bucket_desc_t;
+
+typedef struct bucket_dir { //分配内存方案 内存块大小+桶描述符链表
+	int size;
+	bucket_desc_t *chain;
+}bucket_dir_t;
+
 extern void print_check_memory_info(void);
 
 extern void physics_memory_init(void);
@@ -80,5 +94,8 @@ extern void *malloc_kernel_page(uint32_t count);
 extern void free_kernel_page(void *virtual_addr, uint32_t count);
 extern void *malloc_user_page(uint32_t count);
 extern void free_user_page(void *virtual_addr, uint32_t count);
+
+extern void* kmalloc(size_t size);
+extern void kfree(void *obj, size_t size);
 
 #endif

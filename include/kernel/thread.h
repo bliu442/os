@@ -70,6 +70,7 @@ typedef struct task {
 	list_item_t all_list_item; //链表节点 用于存入全部线程链表
 	uint32_t cr3; //进程页表管理
 	memory_pool_t user_virtual_pool; //进程虚拟地址管理
+	bucket_dir_t user_bucket_dir[10];
 	char name[32];
 	uint32_t magic; //魔数 用于判断堆栈溢出
 }task_t;

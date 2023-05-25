@@ -20,7 +20,7 @@ int printf(const char *fmt, ...) {
 	i = vsprintf(buf, fmt, args);
 	va_end(args);
 
-	write(STDOUT_FILENO, buf, i);
+	i = write(STDOUT_FILENO, buf, i);
 
 	return i;
 }

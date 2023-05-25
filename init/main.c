@@ -11,6 +11,7 @@
 #include "../include/unistd.h"
 #include "../include/kernel/syscall.h"
 #include "../include/stdio.h"
+#include "../include/stdlib.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
@@ -48,6 +49,22 @@ void _start(void) {
 
 void k_thread_a(void *arg) {
 	printk("k_thread_a pid : %#x\r", sys_get_pid());
+
+	while(1) {
+		uint8_t *p1 = kmalloc(3);
+		uint8_t *p2 = kmalloc(3);
+		uint8_t *p3 = kmalloc(3);
+		kfree(p1, 3);
+		kfree(p2, 3);
+		uint8_t *p4 = kmalloc(23);
+		uint8_t *p5 = kmalloc(23);
+		uint8_t *p6 = kmalloc(23);
+		kfree(p3, 3);
+		kfree(p4, 23);
+		kfree(p5, 23);
+		kfree(p6, 23);
+	}
+
 	while(1);
 }
 
@@ -60,5 +77,20 @@ void u_process_a(void) {
 	pid_t pid = get_pid();
 
 	printf("u_process_a pid : %#x\r", pid);
+
+	while(1) {
+		uint8_t *p1 = malloc(3);
+		uint8_t *p2 = malloc(3);
+		uint8_t *p3 = malloc(3);
+		free(p1, 3);
+		free(p2, 3);
+		uint8_t *p4 = malloc(23);
+		uint8_t *p5 = malloc(23);
+		uint8_t *p6 = malloc(23);
+		free(p3, 3);
+		free(p4, 23);
+		free(p5, 23);
+		free(p6, 23);
+	}
 	while(1);
 }
