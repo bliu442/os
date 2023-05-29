@@ -11,6 +11,7 @@
 #define EFLAGS_IOPL_3 (3 << 12)
 #define EFLAGS_IOPL_0 (0 << 12)
 #define GET_EFLAGS(EFLAGS_VAR) __asm__ __volatile__("pushfd; pop %0" : "=g" (EFLAGS_VAR))
+#define GET_CS(CS_VAR) __asm__ __volatile__("mov %0, cs" : "=g" (CS_VAR))
 
 /* GDT IDT */
 #define DPL_0 (1)
@@ -28,6 +29,7 @@
 #define TYPE_TSS (0b1001)
 
 //段选择子属性
+#define CS_RPL 0x3
 #define SELECTOR_RPL_0 (0)
 #define SELECTOR_RPL_3 (3)
 #define SELECTOR_TI_GDT (0 << 2)

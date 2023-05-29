@@ -12,6 +12,7 @@
 #include "../include/kernel/syscall.h"
 #include "../include/stdio.h"
 #include "../include/stdlib.h"
+#include "../include/kernel/debug.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
@@ -35,10 +36,18 @@ void _start(void) {
 
 	console_init(); //之后使用C语言写的显卡驱动
 	printk_init();
+	printk("main.c %x\r", RED, 0x55);
+	printk("main.c %x\r", 0x55);
 
 	thread_start("k_thread_a", 31, k_thread_a, "argA ");
 	thread_start("k_thread_b", 8, k_thread_b, "argB ");
 	process_start(u_process_a, "u_process_a");
+
+	uint32_t cs_reg = 0;
+	GET_CS(cs_reg);
+	ERROR("main.c %x\r", 0x55);
+	WARN("main.c %x\r", 0x55);
+	INFO("main.c %x\r", 0x55);
 
 	STI
 	out_byte(PIC_M_DATA, 0xFE); //打开时钟中断
@@ -77,6 +86,11 @@ void u_process_a(void) {
 	pid_t pid = get_pid();
 
 	printf("u_process_a pid : %#x\r", pid);
+	uint32_t cs_reg = 0;
+	GET_CS(cs_reg);
+	ERROR("main.c %x\r", 0x55);
+	WARN("main.c %x\r", 0x55);
+	INFO("main.c %x\r", 0x55);
 
 	while(1) {
 		uint8_t *p1 = malloc(3);

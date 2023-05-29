@@ -5,6 +5,7 @@
 #include "../../include/asm/io.h"
 #include "../../include/kernel/sync.h"
 #include "../../include/kernel/print.h"
+#include "../../include/stdarg.h"
 
 #define CRT_ADDR_REG 0x3D4
 #define CRT_DATA_REG 0x3D5
@@ -120,11 +121,18 @@ static void command_bs(void) {
  @param count 输出长度
  @retval 输出字符个数
  */
-int console_write(char *buf, uint32_t count) {
+int console_write(char *buf, uint32_t count, ...) {
 	console_acquire();
 
 	char ch;
+	char color = 0x07;
 	int write_size = 0;
+
+	va_list args;
+	va_start(args, count);
+	int magic = va_arg(args, int);
+	if((magic & 0xFFFFFF00) == 0x5B3B5D00)
+		color = magic;
 
 	while(count--) {
 		write_size++;
@@ -150,7 +158,7 @@ int console_write(char *buf, uint32_t count) {
 				}
 
 				*ptr++ = ch;
-				*ptr++ = 0x07;
+				*ptr++ = color;
 
 				pos += 2;
 				++x;

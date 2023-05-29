@@ -23,12 +23,21 @@ int printk(const char *fmt, ...) {
 
 	va_list args;
 	int i;
+	int color = WHITE;
 
 	va_start(args, fmt);
-	i = vsprintf(buf, fmt, args);
+	va_list ptr = args;
+
+	int magic = va_arg(args, int);
+	if((magic & 0xFFFFFF00) == 0x5B3B5D00) {
+		color = magic;	
+		ptr += 4;
+	}
+
+	i = vsprintf(buf, fmt, ptr);
 	va_end(args);
 
-	i = console_write(buf, i);
+	i = console_write(buf, i, color);
 
 	lock_release(&printk_buf_lock);
 	return i;
