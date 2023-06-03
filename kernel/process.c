@@ -18,8 +18,6 @@
 #define USER_VIRTUAL_MEMORY_START 0xB0000000 //暂定
 #define USER_STACK 0xC0000000
 
-#define DIV_ROUND_UP(X, STEP) (((X) + (STEP) - 1) / (STEP))
-
 /*
  @brief 构建用户进程上下文堆栈 使用中断返回执行进程函数,回到到用户态
  @param filename 先用使用函数(.elf)
@@ -63,8 +61,8 @@ void process_execute(void *filename) {
 	process_stack->esp_old = (uint32_t)malloc_a_page(pf_user, USER_STACK - PAGE_SIZE) + PAGE_SIZE; //将r3堆栈栈顶设置为0xC0000000
 	process_stack->ss_old = R3_DATA_SELECTOR;
 
-	BOCHS_DEBUG_MAGIC //查看堆栈
-	BOCHS_DEBUG_MAGIC
+	// BOCHS_DEBUG_MAGIC //查看堆栈
+	// BOCHS_DEBUG_MAGIC
 
 	__asm__("mov esp, %0;"
 		"pop gs;"
@@ -89,8 +87,12 @@ uint32_t process_create_pdt(void) {
 		return -1;
 	}
 
-	/* 拷贝父进程页目录表 */
-	memcpy(pdt_virtual_addr, (uint32_t *)(0xFFFFF000), PAGE_SIZE);
+	// BOCHS_DEBUG_MAGIC
+	// BOCHS_DEBUG_MAGIC
+
+	/* 拷贝内核页目录表 */
+	memcpy(pdt_virtual_addr, (uint32_t *)(0xFFFFF000), 4); //0-4M
+	memcpy((void *)((uint32_t)pdt_virtual_addr + 0x300 * 4), (uint32_t *)(0xFFFFF000 + 0x300 * 4), 1024); //0xC0000000
 	
 	uint32_t pdt_physics_addr = addr_virtual2physics((uint32_t)pdt_virtual_addr);
 	pdt_virtual_addr[1023] = (uint32_t)pdt_physics_addr | PAGE_P | PAGE_RW_W | PAGE_US_U;
@@ -124,7 +126,10 @@ void create_user_virtual_memory_pool(task_t *process) {
 	bitmap_init(&process->user_virtual_pool.pool_bitmap);
 }
 
-static void user_bucket_dir_init(task_t *process) {
+/*
+ @brief 初始化进程内存管理模块
+ */
+void user_bucket_dir_init(task_t *process) {
 	uint32_t len = sizeof(process->user_bucket_dir) / sizeof(process->user_bucket_dir[0]);
 	uint32_t loop = 0;
 	uint32_t size = 16;
@@ -184,7 +189,7 @@ void process_pdt_activate(task_t *process) {
 	if(process->cr3 != 0) //用户进程
 		pdt_physics_addr = addr_virtual2physics(process->cr3);
 
-	__asm__("mov cr3, %0" :: "r" (pdt_physics_addr) : "memory");
+	__asm__ volatile("mov cr3, %0" :: "r" (pdt_physics_addr) : "memory");
 }
 
 /*

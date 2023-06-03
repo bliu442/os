@@ -122,7 +122,7 @@ INTERRUPT_HANDLER 0x2D, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2E, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2F, IDT_INDEX, interrupt_handler_default
 
-global syscall_entry
+global syscall_entry ;用户态进入内核态,cpu自动从tss里拿到r0堆栈栈顶 进入用户态时,r0堆栈所有数据变为无效数据 陷入内核时,从栈顶开始使用堆栈
 syscall_entry:
 	push 0 ;压入错误号
 	push 0x80 ;压入中断向量号 跟INTERRUPT_HANDLER保持一致
@@ -167,6 +167,19 @@ interrupt_handler_default:
 
 	iret
 
+global interrupt_exit
+interrupt_exit:
+	pop gs
+	pop fs
+	pop es
+	pop ds
+	popad
+
+	cli
+	add esp, 8 ;平栈,让栈顶指向eip
+
+	iret
+	
 msg:
 	db "interrupt_handler_default", 10, 13, 0
 

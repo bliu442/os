@@ -40,6 +40,6 @@ void idt_init(void) {
 	idt_ptr.addr = (uint32_t)&idt[0];
 	idt_ptr.limit = sizeof(idt) - 1;
 
-	BOCHS_DEBUG_MAGIC
+	// BOCHS_DEBUG_MAGIC
 	__asm__("lidt idt_ptr;");
 }

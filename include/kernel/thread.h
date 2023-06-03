@@ -66,6 +66,7 @@ typedef struct task {
 	uint32_t ticks; //时间片
 	uint32_t elapsed_ticks; //统计执行了多少时间片
 	pid_t pid;
+	pid_t ppid;
 	list_item_t general_list_item; //链表节点 用于存入就绪/阻塞队列
 	list_item_t all_list_item; //链表节点 用于存入全部线程链表
 	uint32_t cr3; //进程页表管理
@@ -82,6 +83,8 @@ typedef union task_union {
 
 extern task_t *running_thread(void);
 extern pid_t thread_get_pid(void);
+
+extern pid_t fork_pid(void);
 
 extern void thread_create(task_union_t *pthread, thread_fun_t function, void *func_arg);
 extern void thread_init(task_union_t *pthread, char *name, uint32_t priority);

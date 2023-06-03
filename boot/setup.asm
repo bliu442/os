@@ -159,7 +159,7 @@ setup_page:
 	or eax, PAGE_US_U | PAGE_RW_W | PAGE_P
 	mov ebx, PAGE_DIR_TABLE_POS
 	mov ecx, 0xFE
-	mov esi, 0xC00 >> 2 + 1
+	mov esi, (0xC00 >> 2) + 1
 .create_kernel_ptt:
 	mov [ebx + esi * 4], eax
 	inc esi

@@ -54,13 +54,14 @@ switch_to:
 	mov esp, [eax] ;切换堆栈 切到next的堆栈中
 
 ;---------------------------------------------------------使用的堆栈已经不同了
+	;xchg bx, bx
+	;xchg bx, bx
+	
 	pop ebp ;从next的堆栈中弹出数据 恢复现场
 	pop ebx
 	pop edi
 	pop esi
 
-	xchg bx, bx
-	
 	ret ;后续的ret都是从next线程栈中拿到数据 实现了更改eip执行相应的线程函数
 
 ;第一次调度手动构建的堆栈

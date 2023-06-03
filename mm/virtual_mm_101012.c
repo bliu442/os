@@ -193,9 +193,10 @@ void page_table_add(uint32_t virtual_addr,uint32_t physics_addr) {
 
 		/* pte是ptt的子项,将低12位清理可访问到ptt */
 		memset((void *)((uint32_t)pte & 0xFFFFF000), 0, PAGE_SIZE); //清零,防止页表混乱
-		BOCHS_DEBUG_MAGIC
-		BOCHS_DEBUG_MAGIC
-		BOCHS_DEBUG_MAGIC
+
+		// BOCHS_DEBUG_MAGIC
+		// BOCHS_DEBUG_MAGIC
+
 		*pte = (physics_addr | 0x7);
 	}
 }
@@ -294,7 +295,7 @@ void *malloc_a_page(pool_flag_t pf, uint32_t virtual_addr) {
 	} else if(current->cr3 == 0 && pf == pf_kernel) { //内核线程
 		virtual_pool = &kernel_virtual_pool;
 	} else {
-		PANIC("malloc a page error!\r");
+		PANIC("malloc a page!\r");
 	}
 
 	bit_index = (virtual_addr - virtual_pool->addr_start) / PAGE_SIZE;
@@ -303,15 +304,39 @@ void *malloc_a_page(pool_flag_t pf, uint32_t virtual_addr) {
 	bitmap_set(&virtual_pool->pool_bitmap, bit_index, bitmap_used);
 
 	void *physics_addr = malloc_physics_page(physics_pool);
-	if(physics_addr == NULL)
+	if(physics_addr == NULL) {
+		lock_release(&physics_pool->pool_lock);
+		INFO("malloc_physics_page\r");
 		return NULL;
+	}
 
-	BOCHS_DEBUG_MAGIC //查看页表
-	BOCHS_DEBUG_MAGIC
 	page_table_add(virtual_addr, (uint32_t)physics_addr);
-	BOCHS_DEBUG_MAGIC
 
 	lock_release(&physics_pool->pool_lock);
+	return (void *)virtual_addr;
+}
+
+/*
+ @brief 申请一页内存,不添加到虚拟内存池管理中
+ @param pf 内核/用户物理内存池
+ @param virtual_addr 指定的虚拟地址
+ @retval 虚拟地址
+ @note 可以指定虚拟地址,申请一页物理页映射到该地址处
+ @note 仅限fork函数使用, 子进程pcb是拷贝父进程,bitmap已经置位
+ */
+void *malloc_a_page_without_add_virtual_bitmap(pool_flag_t pf, uint32_t virtual_addr) {
+	memory_pool_t *physics_pool = pf & pf_user ? &user_physics_pool : &kernel_physics_pool;
+	lock_acquire(&physics_pool->pool_lock);
+	void *physics_addr = malloc_physics_page(physics_pool);
+	if(physics_addr == NULL) {
+		lock_release(&physics_pool->pool_lock);
+		INFO("malloc_physics_page\r");
+		return NULL;
+	}
+
+	page_table_add(virtual_addr, (uint32_t)physics_addr); //子进程虚拟地址不变,实际使用物理地址与父进程不同
+	lock_release(&physics_pool->pool_lock);
+
 	return (void *)virtual_addr;
 }
 

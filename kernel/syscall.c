@@ -10,7 +10,8 @@ void *syscall_table[SYSCALL_TABLE_SIZE] = {
 	sys_write,
 	sys_get_pid,
 	sys_malloc,
-	sys_free
+	sys_free,
+	sys_fork,
 };
 
 ssize_t sys_write(int fd, const void *buf, size_t count) {

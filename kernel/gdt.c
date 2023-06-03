@@ -109,7 +109,7 @@ void gdt_init(void) {
 	gdt_ptr.addr = (uint32_t)&gdt[0];
 	gdt_ptr.limit = sizeof(gdt) - 1;
 
-	BOCHS_DEBUG_MAGIC;
+	// BOCHS_DEBUG_MAGIC;
 	__asm__("lgdt gdt_ptr;");
 
 	__asm__("mov ax, %0; ltr ax" :: "memory" (TSS_SELECTOR));

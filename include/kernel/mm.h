@@ -90,6 +90,7 @@ extern void page_table_remove(pool_flag_t pf, uint32_t virtual_addr);
 extern void *malloc_page(pool_flag_t pf, uint32_t count);
 extern void free_page(pool_flag_t pf, void *virtual_addr_start, uint32_t count);
 extern void *malloc_a_page(pool_flag_t pf, uint32_t virtual_addr);
+extern void *malloc_a_page_without_add_virtual_bitmap(pool_flag_t pf, uint32_t virtual_addr);
 extern void *malloc_kernel_page(uint32_t count);
 extern void free_kernel_page(void *virtual_addr, uint32_t count);
 extern void *malloc_user_page(uint32_t count);

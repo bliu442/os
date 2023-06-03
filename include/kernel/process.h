@@ -4,6 +4,8 @@
 #include "../stdint.h"
 #include "./thread.h"
 
+#define DIV_ROUND_UP(X, STEP) (((X) + (STEP) - 1) / (STEP))
+
 typedef struct tss {
 	uint32_t backlink;
 	uint32_t esp0;
@@ -34,6 +36,9 @@ typedef struct tss {
 	uint32_t io_base;
 }__attribute__((packed)) tss_t;
 
+extern uint32_t process_create_pdt(void);
+extern void process_pdt_activate(task_t *process);
+extern void user_bucket_dir_init(task_t *process);
 extern void process_start(void *filename, char *name);
 extern void process_activate(task_t *process);
 

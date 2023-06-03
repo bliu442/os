@@ -47,6 +47,11 @@ static pid_t thread_allocate_pid(void) {
 	return pid;
 }
 
+/* sys_fork函数使用,子进程获取pid */
+pid_t fork_pid(void) {
+	return thread_allocate_pid();
+}
+
 /*
  @brief 初始化线程堆栈结构
  @param pthread 线程pcb结构体指针
@@ -95,6 +100,7 @@ void thread_init(task_union_t *pthread, char *name, uint32_t priority) {
 	pthread->task.ticks = priority;
 	pthread->task.elapsed_ticks = 0;
 	pthread->task.pid = thread_allocate_pid();
+	pthread->task.ppid = (pid_t)-1;
 	pthread->task.stack = (uint32_t)pthread + PAGE_SIZE;
 	pthread->task.magic = 0x000055aa;
 }

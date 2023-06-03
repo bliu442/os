@@ -13,9 +13,11 @@ extern int errno;
 #define __NR_get_pid 1
 #define __NR_malloc 2
 #define __NR_free 3
+#define __NR_fork 4
 
 extern int write(int fd, const char *buf, int count);
 extern pid_t get_pid(void);
+extern pid_t fork(void);
 
 #define _syscall0(type, name) \
 type name(void) \
