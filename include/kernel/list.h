@@ -3,9 +3,6 @@
 
 #include "../stdint.h"
 
-#define list_offset(struct_type, member) (int)(&((struct_type *)0)->member) //结构体成员member在结构体中的偏移量
-#define item2entry(struct_type, struct_member_name, item_ptr) (struct_type *)((int)item_ptr - list_offset(struct_type, struct_member_name)) //根据结构体成员地址找到结构体起始地址
-
 typedef struct list_item {
 	struct list_item *prev; //前一个
 	struct list_item *next; //后一个

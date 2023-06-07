@@ -13,6 +13,7 @@
 #include "../include/stdio.h"
 #include "../include/stdlib.h"
 #include "../include/kernel/debug.h"
+#include "../include/kernel/hd.h"
 
 extern void k_thread_a(void *arg);
 extern void k_thread_b(void *arg);
@@ -36,6 +37,23 @@ void _start(void) {
 
 	console_init(); //之后使用C语言写的显卡驱动
 	printk_init();
+
+	hd_init();
+	char buf[512] = {0};
+	hd_read_sector(&channels[0].disk[0], 0, 1, buf);
+	memset(buf, 0, sizeof(buf));
+	hd_read_sector(&channels[0].disk[1], 0, 1, buf);
+	memset(buf, 0, sizeof(buf));
+	hd_read_sector(&channels[1].disk[0], 0, 1, buf); 
+	memset(buf, 0, sizeof(buf));
+	hd_read_sector(&channels[1].disk[1], 0, 1, buf);
+	memset(buf, 0, sizeof(buf));
+
+	memset(buf, 0x5A, sizeof(buf));
+	hd_write_sector(&channels[0].disk[0], 0, 1, buf);
+	hd_write_sector(&channels[0].disk[1], 0, 1, buf);
+	hd_write_sector(&channels[1].disk[0], 0, 1, buf);
+	hd_write_sector(&channels[1].disk[1], 0, 1, buf);
 
 	thread_start("k_thread_a", 31, k_thread_a, "argA ");
 	thread_start("k_thread_b", 8, k_thread_b, "argB ");

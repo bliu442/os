@@ -84,8 +84,8 @@ static void copy_body_stack3(task_t *child_thread, task_t *parent_thread, void *
 
 					memcpy(buf, (void *)addr, PAGE_SIZE);
 
-					BOCHS_DEBUG_MAGIC //1.0xBFFFF000 父进程r3堆栈数据
-					BOCHS_DEBUG_MAGIC
+					// BOCHS_DEBUG_MAGIC //1.0xBFFFF000 父进程r3堆栈数据
+					// BOCHS_DEBUG_MAGIC
 
 					process_pdt_activate(child_thread);
 
@@ -95,13 +95,13 @@ static void copy_body_stack3(task_t *child_thread, task_t *parent_thread, void *
 						return; //mark 内存回收
 					}
 
-					BOCHS_DEBUG_MAGIC //2.0xBFFFF000 新创建物理页,page table应该改变
-					BOCHS_DEBUG_MAGIC
+					// BOCHS_DEBUG_MAGIC //2.0xBFFFF000 新创建物理页,page table应该改变
+					// BOCHS_DEBUG_MAGIC
 
 					memcpy((void *)addr, buf, PAGE_SIZE);
 
-					BOCHS_DEBUG_MAGIC //3.0xBFFFF000 将父进程堆栈拷贝
-					BOCHS_DEBUG_MAGIC
+					// BOCHS_DEBUG_MAGIC //3.0xBFFFF000 将父进程堆栈拷贝
+					// BOCHS_DEBUG_MAGIC
 
 					process_pdt_activate(parent_thread);
 				}

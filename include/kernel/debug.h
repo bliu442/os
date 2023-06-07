@@ -8,6 +8,9 @@
 #define DEBUG
 
 #define PANIC(...) panic_spin(__FILE__, __LINE__, __func__, __VA_ARGS__)
+#define DIV_ROUND_UP(X, STEP) (((X) + (STEP) - 1) / (STEP))
+#define list_offset(struct_type, member) (int)(&((struct_type *)0)->member) //结构体成员member在结构体中的偏移量
+#define item2entry(struct_type, struct_member_name, item_ptr) (struct_type *)((int)item_ptr - list_offset(struct_type, struct_member_name)) //根据结构体成员地址找到结构体起始地址
 
 #ifdef DEBUG
 #define ASSERT(CONDITION) if(CONDITION) {} else {PANIC(#CONDITION);}

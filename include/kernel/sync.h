@@ -19,6 +19,10 @@ typedef struct lock {
 	uint32_t holder_repeat_nr; //锁的持有者重复申请锁的次数
 }lock_t;
 
+extern void semaphore_init(semaphore_t *semaphore, uint8_t value);
+extern void semaphore_down(semaphore_t *semaphore);
+extern void semaphore_up(semaphore_t *semaphore);
+
 extern void lock_init(lock_t *lock);
 extern void lock_acquire(lock_t *lock);
 extern void lock_release(lock_t *lock);

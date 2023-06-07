@@ -4,8 +4,6 @@
 #include "../stdint.h"
 #include "./thread.h"
 
-#define DIV_ROUND_UP(X, STEP) (((X) + (STEP) - 1) / (STEP))
-
 typedef struct tss {
 	uint32_t backlink;
 	uint32_t esp0;
