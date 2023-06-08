@@ -61,7 +61,7 @@ hd_channel_t channels[2];
  */
 void hd_init(void) {
 	uint8_t hd_number = *(uint8_t *)(HD_NUMBER_ADDR);
-	INFO("disk number : %d", hd_number);
+	INFO("disk number : %d\r", hd_number);
 
 	hd_channel_t *channel = NULL;
 	disk_t *disk = NULL;
@@ -122,9 +122,17 @@ static void out_param(disk_t *hd, uint32_t lba, uint8_t count) {
 }
 
 static void out_cmd(hd_channel_t *channel, uint8_t cmd) {
+	channel->expecting_intrrupt = true;
 	out_byte(HD_CMD(channel), cmd);
 }
 
+/*
+ @brief 阻塞方式读硬盘
+ @param hd 硬盘
+ @param lba 要读的起始地址
+ @param count 读多少扇区
+ @param buf 读到哪
+ */
 void hd_read_sector(disk_t *hd, uint32_t lba, uint8_t count, void *buf) {
 	uint8_t status = 0;
 	while(1) {
@@ -142,9 +150,16 @@ void hd_read_sector(disk_t *hd, uint32_t lba, uint8_t count, void *buf) {
 			break;
 	}
 
-	port_read(HD_DATA(hd->channel), buf, count * 512 / 2);
+	port_read(HD_DATA(hd->channel), buf, count * SECTOR_SIZE / 2);
 }
 
+/*
+ @brief 阻塞方式写硬盘
+ @param hd 硬盘
+ @param lba 要写的起始地址
+ @param count 写多少扇区
+ @param buf 写的数据
+ */
 void hd_write_sector(disk_t *hd, uint32_t lba, uint8_t count, uint8_t *buf) {
 	uint8_t status = 0;
 	while(1) {
@@ -162,5 +177,109 @@ void hd_write_sector(disk_t *hd, uint32_t lba, uint8_t count, uint8_t *buf) {
 			break;
 	}
 
-	port_write(HD_DATA(hd->channel), buf, count * 512 / 2);
+	port_write(HD_DATA(hd->channel), buf, count * SECTOR_SIZE / 2);
+}
+
+void hd_handler(uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, uint32_t edi, uint32_t esi,
+	uint32_t ebp, uint32_t esp, uint32_t ebx, uint32_t edx, uint32_t ecx, uint32_t eax,
+	uint32_t irq_no) {
+	uint8_t channel_no = irq_no - 0x20 - 14;
+	hd_channel_t *channel = &channels[channel_no];
+
+	INFO("channel : %s\r", channel_no ? "ata1" : "ata0")
+	if(channel->expecting_intrrupt) {
+		channel->expecting_intrrupt = false;
+		semaphore_up(&channel->disk_done);
+
+		in_byte(HD_STATUS(channel)); //清中断
+	}
+}
+
+static bool hd_wait(disk_t *hd) {
+	uint32_t time = 30 * 1000;
+	uint8_t status = 0;
+
+	while(time > 0) {
+		status = in_byte(HD_STATUS(hd->channel));
+		if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
+			return true;
+		else {
+			sleep_ms(100);
+			time -= 100;
+		}
+	}
+
+	return false;
+}
+
+/*
+ @param 中断方式读取硬盘
+ @param hd 硬盘
+ @param lba 要读的起始地址
+ @param count 读多少扇区
+ @param buf 读到哪
+ */
+void hd_read(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf) {
+	lock_acquire(&hd->channel->lock);
+
+	uint32_t sector_number = 0;
+	while(count) {
+		if(count > 255)
+			sector_number = 255;
+		else
+			sector_number = count;
+
+		out_param(hd, lba, sector_number);
+		out_cmd(hd->channel, CMD_READ);
+
+		semaphore_down(&hd->channel->disk_done); //等待硬盘将数据读到硬盘缓冲区中
+
+		/* 硬盘准备好数据后,产生中断,中断中释放信号量,继续执行代码 */
+		if(!hd_wait(hd))
+			PANIC("read disk error\r\n");
+
+		port_read(HD_DATA(hd->channel), buf, sector_number * SECTOR_SIZE / 2);
+
+		buf += sector_number * SECTOR_SIZE;
+		lba += sector_number;
+		count -= sector_number;
+	}
+
+	lock_release(&hd->channel->lock);
+}
+
+/*
+ @brief 中断方式写硬盘
+ @param hd 硬盘
+ @param lba 要写的起始地址
+ @param count 写多少扇区
+ @param buf 写的数据
+ */
+void hd_write(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf) {
+	lock_acquire(&hd->channel->lock);
+
+	uint32_t sector_number = 0;
+	while(count) {
+		if(count > 255)
+			sector_number = 255;
+		else
+			sector_number = count;
+
+		out_param(hd, lba, sector_number);
+		out_cmd(hd->channel, CMD_WRITE);
+
+		if(!hd_wait(hd))
+			PANIC("write disk error\r\n");
+
+		port_write(HD_DATA(hd->channel), buf, sector_number * SECTOR_SIZE / 2);
+
+		semaphore_down(&hd->channel->disk_done); //等待硬盘将数据从硬盘缓冲区写入硬盘
+
+		/* 硬盘写完数据后,产生中断,中断中释放信号量,继续执行代码 */
+		buf += sector_number * SECTOR_SIZE;
+		lba += sector_number;
+		count -= sector_number;
+	}
+
+	lock_release(&hd->channel->lock);
 }

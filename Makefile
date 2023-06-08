@@ -44,7 +44,10 @@ qemug:all
 	-S -s
 
 qemu:all
-	qemu-system-i386 -m 32M -boot c -hda $(HD_IMG)
+	qemu-system-i386 -m 32M -boot c -hda $(HD_IMG) \
+	-hdb ./hdb.img \
+	-hdc ./hdc.img \
+	-hdd ./hdd.img \
 
 $(HD_IMG) hdb.img hdc.img hdd.img:
 	bximage -q -func=create -hd=20 -sectsize=512 -imgmode=flat $@

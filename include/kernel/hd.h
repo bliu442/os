@@ -19,6 +19,8 @@
 #include "../stdint.h"
 #include "./sync.h"
 
+#define SECTOR_SIZE 512
+
 /* 分区结构 */
 typedef struct hd_partition {
 
@@ -40,8 +42,8 @@ typedef struct hd_channel{
 	char name[8];
 	uint16_t port_base; //io端口寄存器基址
 	uint8_t irq_no; //中断号
-	lock_t lock;
-	semaphore_t disk_done;
+	lock_t lock; //用于申请channel ata
+	semaphore_t disk_done; //用于控制硬盘数据传输
 	bool expecting_intrrupt; //中断控制
 	disk_t disk[2];
 }hd_channel_t;
@@ -50,5 +52,7 @@ extern hd_channel_t channels[2];
 extern void hd_init(void);
 extern void hd_read_sector(disk_t *hd, uint32_t lba, uint8_t count, void *buf);
 extern void hd_write_sector(disk_t *hd, uint32_t lba, uint8_t count, uint8_t *buf);
+extern void hd_read(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf);
+extern void hd_write(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf);
 
 #endif

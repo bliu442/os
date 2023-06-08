@@ -11,6 +11,7 @@ extern exception_handler ;see interrupt.h
 extern printk ;see print.h
 extern clock_handler ;see interrupt.h
 extern syscall_table ;see syscall.c
+extern hd_handler ;see hd.c
 
 section .data
 global interrupt_handler_table
@@ -119,8 +120,8 @@ INTERRUPT_HANDLER 0x2A, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2B, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2C, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x2D, IDT_INDEX, interrupt_handler_default
-INTERRUPT_HANDLER 0x2E, IDT_INDEX, interrupt_handler_default
-INTERRUPT_HANDLER 0x2F, IDT_INDEX, interrupt_handler_default
+INTERRUPT_HANDLER 0x2E, IDT_INDEX, hd_handler
+INTERRUPT_HANDLER 0x2F, IDT_INDEX, hd_handler
 
 global syscall_entry ;用户态进入内核态,cpu自动从tss里拿到r0堆栈栈顶 进入用户态时,r0堆栈所有数据变为无效数据 陷入内核时,从栈顶开始使用堆栈
 syscall_entry:

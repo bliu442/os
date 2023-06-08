@@ -8,6 +8,7 @@
 extern void switch_to(task_t *current, task_t *next); //see sched.asm
 
 static list_item_t *thread_list_next_item;
+extern task_union_t *idle_thread;
 
 /* @brief 任务调度函数 */
 void schedule(void) {
@@ -24,7 +25,9 @@ void schedule(void) {
 		//阻塞等其他状态
 	}
 
-	ASSERT(!list_empty(&thread_ready_list));
+	if(list_empty(&thread_ready_list)) {
+		thread_unblock((task_t *)idle_thread);
+	}
 	thread_list_next_item = list_pop(&thread_ready_list);
 	
 	task_t *next = item2entry(task_t, general_list_item, thread_list_next_item);

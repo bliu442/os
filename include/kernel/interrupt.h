@@ -24,4 +24,6 @@ extern void clock_handler(void);
 extern if_enum_t interrupt_disable(void);
 extern if_enum_t interrupt_set_status(if_enum_t status);
 
+extern void sleep_ms(uint32_t time);
+
 #endif

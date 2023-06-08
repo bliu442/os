@@ -12,9 +12,17 @@
 #include "../include/kernel/sched.h"
 
 task_union_t *main_thread;
+task_union_t *idle_thread;
 list_t thread_ready_list;
 list_t thread_all_list;
 lock_t pid_lock;
+
+static void idle(void *arg) {
+	while(1) {
+		thread_block(TASK_BLOCKED);
+		__asm__ volatile("sti; hlt");
+	}
+}
 
 /*
  @brief 执行线程函数
@@ -161,6 +169,21 @@ void thread_unblock(task_t *pthread) {
 	STI_FUNC
 }
 
+/*
+ @brief 主动让出cpu，进入就绪链表
+ */
+void thread_yield(void) {
+	CLI_FUNC
+
+	task_t *current = running_thread();
+	ASSERT(!list_find_item(&thread_ready_list, &current->general_list_item));
+	list_append(&thread_ready_list, &current->general_list_item);
+	current->state = TASK_READY;
+	schedule();
+
+	STI_FUNC
+}
+
 /* @brief 将已经存在的执行流main更改为线程 */
 static void make_main_thread(void) {
 	main_thread = (task_union_t *)running_thread();
@@ -177,5 +200,7 @@ void pthread_init(void) {
 	list_init(&thread_ready_list);
 	list_init(&thread_all_list);
 	lock_init(&pid_lock);
+	
 	make_main_thread();
+	idle_thread = (task_union_t *)thread_start("idle", 10, idle, NULL);
 }

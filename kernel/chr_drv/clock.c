@@ -29,6 +29,8 @@
 #define OSCILLATOR 1193182 //定时器频率
 #define CLOCK_COUNTER (OSCILLATOR / HZ) //寄存器的初始计数值
 
+uint32_t systicks;
+
 void clock_init(void) {
 	out_byte(PIT_CTRL_REG, COUNTER_NO_0 | COUNTER0_RW | COUNTER0_MODE | COUNTER0_BCD); //0b00_11_010_0
 	out_byte(PIT_CHAN0_REG, CLOCK_COUNTER & 0xFF);
@@ -36,6 +38,8 @@ void clock_init(void) {
 }
 
 void clock_handler(void) {
+	systicks++;
+
 	task_t *current = running_thread();
 	ASSERT(current->magic != 0x5aa555aa)
 
@@ -47,3 +51,17 @@ void clock_handler(void) {
 		current->ticks--;
 }
 
+static void sleep(uint32_t ticks) {
+	uint32_t start_ticks = systicks;
+	while(systicks != start_ticks + ticks)
+		thread_yield();
+}
+
+/*
+ @brief 毫秒级延时 以时钟中断为基础,~20ms误差
+ @param time 单位ms
+ */
+void sleep_ms(uint32_t time) {
+	uint32_t sleep_ticks = DIV_ROUND_UP(time, TIME);
+	sleep(sleep_ticks);
+}
