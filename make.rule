@@ -8,6 +8,7 @@ GCCFLAGS += -fno-pic #不需要位置无关的代码 position independent code
 GCCFLAGS += -fno-pie #不需要位置无关的可执行程序 position independent executable
 GCCFLAGS += -nostdlib #不需要标准库
 GCCFLAGS += -fno-stack-protector #不需要栈保护
+GCCFLAGS += -w -Wno-address-of-packed-member #地址不对齐
 GCCFLAGS := $(strip $(GCCFLAGS))
 
 NASMFLAGS := -f elf32

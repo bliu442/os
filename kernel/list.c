@@ -136,6 +136,8 @@ list_item_t *list_traverasl(list_t *list, function func, int arg) {
 	while(item != &list->tail) {
 		if(func(item, arg))
 			return item;
+
+		item = item->next;
 	}
 
 	return NULL;

@@ -2,6 +2,7 @@
 #include "../../include/string.h"
 #include "../../include/asm/system.h"
 #include "../../include/asm/io.h"
+#include "../../include/kernel/mm.h"
 
 #define TAG "disk"
 #include "../../include/kernel/debug.h"
@@ -39,10 +40,144 @@
 #define DEV_DEV		0x10 //主/从盘
 
 #define HD_NUMBER_ADDR 0x475 //bios检测内存写的(物理地址)
-#define DIV_ROUND_UP(X, STEP) (((X) + (STEP) - 1) / (STEP))
 
 const uint8_t channel_number = 2;
 hd_channel_t channels[2];
+mbr_sector_t mbr;
+list_t partition_list;
+
+static bool hd_wait(disk_t *hd) {
+	uint32_t time = 30 * 1000;
+	uint8_t status = 0;
+
+	while(time > 0) {
+		status = in_byte(HD_STATUS(hd->channel));
+		if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
+			return true;
+		else {
+			sleep_ms(100);
+			time -= 100;
+		}
+	}
+
+	return false;
+}
+
+static void out_param(disk_t *hd, uint32_t lba, uint8_t count) {
+	out_byte(HD_SECT_CNT(hd->channel), count);
+
+	out_byte(HD_LBA_L(hd->channel), lba);
+	out_byte(HD_LBA_M(hd->channel), lba >> 8);
+	out_byte(HD_LBA_H(hd->channel), lba >> 16);
+	out_byte(HD_DEV(hd->channel), lba >> 24 | DEV_MBS | DEV_LBA | (hd->dev_no ? DEV_DEV : 0));
+}
+
+static void out_cmd(hd_channel_t *channel, uint8_t cmd) {
+	channel->expecting_intrrupt = true;
+	out_byte(HD_CMD(channel), cmd);
+}
+
+/* 读取磁盘info信息 */
+static void identify_disk(disk_t *hd) {
+	uint8_t status = 0;
+	while(1) {
+		status = in_byte(HD_STATUS(hd->channel));
+		if((status & BUSY_STAT) != BUSY_STAT)
+			break;
+	}
+
+	out_byte(HD_DEV(hd->channel), DEV_MBS | DEV_LBA | (hd->dev_no ? DEV_DEV : 0));
+	out_cmd(hd->channel, CMD_IDENTIFY);
+
+	while(1) {
+		status = in_byte(HD_STATUS(hd->channel));
+		if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
+			break;
+	}
+
+	port_read(HD_DATA(hd->channel), hd->info, 512 / 2);
+
+	hd->cylinder = *(uint16_t *)(hd->info + 1 * 2);
+	hd->head = *(uint16_t *)(hd->info + 3 * 2);
+	hd->track_sectors = *(uint16_t *)(hd->info + 6 * 2);
+	memcpy(hd->number, hd->info + 10 * 2, 20);
+	hd->number[21] = '\0';
+	hd->buffer_type = *(uint16_t *)(hd->info + 20 * 2);
+	hd->buffer_size = *(uint16_t *)(hd->info + 21 * 2);
+	memcpy(hd->model, hd->info + 27 * 2, 40);
+	hd->model[41] = '\0';
+	hd->sectors = *(uint32_t *)(hd->info + 60 * 2);
+}
+
+/* 扫描磁盘分区表 */
+static void partition_scan(disk_t *hd, uint32_t mbr_lba) {
+	hd_read_sector(hd, mbr_lba, 1, (uint8_t *)&mbr); //mark 分区时保证拓展分区在最后,要不mbr就被冲掉了
+	partition_t *ptr = &mbr.partition[0];
+
+	static uint32_t base = 0;
+	static uint32_t prim_no = 0;
+	static uint32_t logic_no = 0;
+	char buf[10] = {0};
+	char num[3] = {0};
+
+	uint32_t part_index = 0;
+	while(part_index++ < 4) {
+		memset(buf, 0, sizeof(buf));
+
+		if(ptr->type == 0x83) {
+			strcpy(buf, hd->name);
+			strcat(buf, "-");
+
+			if(base == 0) { //mbr 主分区
+				num[0] = prim_no + 1 + 0x30; //itoa
+				strcat(buf, num);
+				strcpy(hd->prim_parts[prim_no].name, buf);
+
+				hd->prim_parts[prim_no].sector_start = ptr->sector_offset;
+				hd->prim_parts[prim_no].sector_number = ptr->sector_number;
+				hd->prim_parts[prim_no].disk = hd;
+
+				list_append(&partition_list, &hd->prim_parts[prim_no].part_list_item);
+
+				prim_no++;
+			} else { //ebr 逻辑分区
+				num[0] = (logic_no + 5) / 10 % 10 + 0x30;
+				num[1] = (logic_no + 5) % 10 + 0x30;
+				strcat(buf, num);
+				strcpy(hd->logic_parts[logic_no].name, buf);
+
+				hd->logic_parts[logic_no].sector_start = ptr->sector_offset + mbr_lba;
+				hd->logic_parts[logic_no].sector_number = ptr->sector_number;
+				hd->logic_parts[logic_no].disk = hd;
+
+				list_append(&partition_list, &hd->logic_parts[logic_no].part_list_item);
+
+				logic_no++;
+			}
+		} else if(ptr->type == 0x05) { //拓展分区
+			if(base == 0) { //拓展分区 基址0
+				base = ptr->sector_offset;
+				partition_scan(hd, ptr->sector_offset);
+			} else { //子拓展分区 基址拓展分区sector_start
+				partition_scan(hd, ptr->sector_offset + base);
+			}
+		}
+
+		ptr++;
+	}
+
+	base = 0; //每个磁盘重置
+	prim_no = 0;
+	logic_no = 0;
+}
+
+bool partition_info(list_item_t *pitem, int arg __attribute__ ((unused))) {
+	hd_partition_t *ptr = item2entry(hd_partition_t, part_list_item, pitem);
+
+	INFO("%s : sector_start : %d sector_number : %d\r", ptr->name, ptr->sector_start, ptr->sector_number);
+
+	return false;
+}
 
 /*
  boch
@@ -63,6 +198,7 @@ void hd_init(void) {
 	uint8_t hd_number = *(uint8_t *)(HD_NUMBER_ADDR);
 	INFO("disk number : %d\r", hd_number);
 
+	list_init(&partition_list);
 	hd_channel_t *channel = NULL;
 	disk_t *disk = NULL;
 	uint8_t channel_no = 0, disk_no = 0;
@@ -71,12 +207,12 @@ void hd_init(void) {
 
 		switch(channel_no) {
 			case 0:
-				memcpy(channel->name, "ata0", sizeof("ata0"));
+				strcpy(channel->name, "ata0");
 				channel->port_base = 0x1F0;
 				channel->irq_no = 14 + 0x20;
 				break;
 			case 1:
-				memcpy(channel->name, "ata1", sizeof("ata1"));
+				strcpy(channel->name, "ata1");
 				channel->port_base = 0x170;
 				channel->irq_no = 15 + 0x20;
 				break;
@@ -104,26 +240,27 @@ void hd_init(void) {
 					break;
 			}
 
+			identify_disk(disk);
+			partition_scan(disk, 0);
+
+			INFO("hd : %s\r", disk->name);
+			INFO("hd cylinder : %d\r", disk->cylinder);
+			INFO("hd head : %d\r", disk->head);
+			INFO("hd track_sectors : %d\r", disk->track_sectors);
+			INFO("hd number : %s\r", disk->number);
+			INFO("hd buffer_type : %d\r", disk->buffer_type);
+			INFO("hd buffer_size : %d\r", disk->buffer_size);
+			INFO("hd model : %s\r", disk->model);
+			INFO("hd sectors : %d\r", disk->sectors);
+			INFO("hd capacity : %dM\r", disk->sectors * SECTOR_SIZE / 1024 / 1024);
 			disk_no++;
 		}
 
 		disk_no = 0;
 		channel_no++;
 	}
-}
 
-static void out_param(disk_t *hd, uint32_t lba, uint8_t count) {
-	out_byte(HD_SECT_CNT(hd->channel), count);
-
-	out_byte(HD_LBA_L(hd->channel), lba);
-	out_byte(HD_LBA_M(hd->channel), lba >> 8);
-	out_byte(HD_LBA_H(hd->channel), lba >> 16);
-	out_byte(HD_DEV(hd->channel), lba >> 24 | DEV_MBS | DEV_LBA | (hd->dev_no ? DEV_DEV : 0));
-}
-
-static void out_cmd(hd_channel_t *channel, uint8_t cmd) {
-	channel->expecting_intrrupt = true;
-	out_byte(HD_CMD(channel), cmd);
+	list_traverasl(&partition_list, partition_info, NULL);
 }
 
 /*
@@ -193,23 +330,6 @@ void hd_handler(uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, uint32_t edi
 
 		in_byte(HD_STATUS(channel)); //清中断
 	}
-}
-
-static bool hd_wait(disk_t *hd) {
-	uint32_t time = 30 * 1000;
-	uint8_t status = 0;
-
-	while(time > 0) {
-		status = in_byte(HD_STATUS(hd->channel));
-		if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
-			return true;
-		else {
-			sleep_ms(100);
-			time -= 100;
-		}
-	}
-
-	return false;
 }
 
 /*
