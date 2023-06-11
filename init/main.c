@@ -45,31 +45,8 @@ void _start(void) {
 	process_start(u_process_a, "u_process_a");
 
 	STI
-	out_byte(PIC_M_DATA, 0b11111010); //打开0时钟中断 2号级联
+	out_byte(PIC_M_DATA, 0b11111000); //打开0时钟中断 1键盘中断 2号级联
 	out_byte(PIC_S_DATA, 0b00111111); //打开两个硬盘中断 14 15
-
-	char buf[512] = {0};
-	hd_read(&channels[0].disk[0], 0, 1, buf);
-	CLI
-	memset(buf, 0, sizeof(buf));
-	STI
-	hd_read(&channels[0].disk[1], 0, 1, buf);
-	CLI
-	memset(buf, 0, sizeof(buf));
-	STI
-	hd_read(&channels[1].disk[0], 0, 1, buf); 
-	CLI
-	memset(buf, 0, sizeof(buf));
-	STI
-	hd_read(&channels[1].disk[1], 0, 1, buf);
-	CLI
-
-	memset(buf, 0x5A, sizeof(buf));
-	STI
-	hd_write(&channels[0].disk[0], 0, 1, buf);
-	hd_write(&channels[0].disk[1], 0, 1, buf);
-	hd_write(&channels[1].disk[0], 0, 1, buf);
-	hd_write(&channels[1].disk[1], 0, 1, buf);
 
 	printk("main pid : %#x\r", sys_get_pid());
 	while(1);

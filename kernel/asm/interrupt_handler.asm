@@ -12,6 +12,7 @@ extern printk ;see print.h
 extern clock_handler ;see interrupt.h
 extern syscall_table ;see syscall.c
 extern hd_handler ;see hd.c
+extern keymap_handler ;see keyboard.c
 
 section .data
 global interrupt_handler_table
@@ -106,7 +107,7 @@ INTERRUPT_HANDLER 0x1E, IDT_INDEX, interrupt_handler_default ;reserved
 INTERRUPT_HANDLER 0x1F, IDT_INDEX, interrupt_handler_default ;reserved
 
 INTERRUPT_HANDLER 0x20, IDT_INDEX, clock_handler
-INTERRUPT_HANDLER 0x21, IDT_INDEX, interrupt_handler_default
+INTERRUPT_HANDLER 0x21, IDT_INDEX, keymap_handler
 INTERRUPT_HANDLER 0x22, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x23, IDT_INDEX, interrupt_handler_default
 INTERRUPT_HANDLER 0x24, IDT_INDEX, interrupt_handler_default
