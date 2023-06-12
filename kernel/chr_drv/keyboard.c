@@ -9,9 +9,10 @@
 #include "../../include/stdint.h"
 #include "../../include/asm/io.h"
 #include "../../include/asm/system.h"
+#include "../../include/kernel/ioqueue.h"
 
 #define TAG "keyboard"
-#define DEBUG_LEVEL 3
+#define DEBUG_LEVEL 2
 #include "../../include/kernel/debug.h"
 
 #define KBD_BUFF_PORT 0x60
@@ -19,6 +20,8 @@
 #define INV 0 //不可见字符
 #define ESC 0x1B
 #define DEL 0x7F
+
+ioqueue_t keyboard_buf;
 
 static char keymap[][4] = {
 	/* 未与shift组合 与shift组合 false : 按键抬起 true : 按键按下 */
@@ -190,5 +193,8 @@ void keymap_handler(void) {
 	if(ch == INV)
 		return;
 
-	printk("%c\r", ch);
+	printk("%c", ch);
+
+	if(!ioqueue_full(&keyboard_buf))
+		ioqueue_putchar(&keyboard_buf, ch);
 }

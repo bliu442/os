@@ -2,6 +2,7 @@
 
 #include "../include/kernel/print.h"
 #include "../include/asm/system.h"
+#include "../include/kernel/debug.h"
 
 #if 0
 /* @brief 打印错误信息 */
@@ -35,3 +36,35 @@ void panic_spin(uint8_t *filename, int line, uint8_t *function, uint8_t *conditi
 	while(1);
 }
 #endif
+
+void printk_hex(void *buf, uint32_t len) {
+	uint8_t *ptr = buf;
+
+	if(len > 0) {
+		for(uint32_t i = 1;i <= len;++i) {
+			if((i & 0xF) == 1) {
+				if(i != 1)
+					printk("\r");
+				printk("[HEX]: ", COLOR_GREEN);
+			}
+			printk("%2x ", *ptr++);
+		}
+		printk("\r");
+	}
+}
+
+void printf_hex(void *buf, uint32_t len) {
+	uint8_t *ptr = buf;
+
+	if(len > 0) {
+		for(uint32_t i = 1;i <= len;++i) {
+			if((i & 0xF) == 1) {
+				if(i != 1)
+					printf("\r");
+				printf("[HEX]: ");
+			}
+			printf("%2x ", *ptr++);
+		}
+		printf("\r");
+	}
+}

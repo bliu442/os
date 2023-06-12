@@ -19,7 +19,7 @@
 #endif
 
 #ifndef DEBUG_LEVEL
-#define DEBUG_LEVEL 3
+#define DEBUG_LEVEL 4
 #endif
 
 #ifndef TAG
@@ -31,10 +31,14 @@
 #define COLOR_RED RED
 #define COLOR_YELLOW YELLOW
 #define COLOR_GREEN GREEN
+#define COLOR_BLUE BLUE
+#define COLOR_WATHET WATHET
 #else
 #define COLOR_RED
 #define COLOR_YELLOW
 #define COLOR_GREEN
+#define COLOR_BLUE
+#define COLOR_WATHET
 #endif
 
 #if (DEBUG_LEVEL > 0)
@@ -85,6 +89,22 @@
 #define INFO(format, ...)
 #endif
 
-extern void panic_spin(char *filename, int line, const char *function, const char *condition);
+#if (DEBUG_LEVEL > 3)
+#define PRINT_HEX(buf, len) do { \
+	uint32_t cs_value = 0; \
+	GET_CS(cs_value); \
+	if((cs_value & CS_RPL) == SELECTOR_RPL_3) { \
+		printf_hex(buf, len); \
+	} else { \
+		printk_hex(buf, len); \
+	} \
+} while(0);
+#else
+#define PRINT_HEX(buf, len)
+#endif
+
+extern void panic_spin(uint8_t *filename, int line, uint8_t *function, uint8_t *condition);
+extern void printk_hex(void *buf, uint32_t len);
+extern void printf_hex(void *buf, uint32_t len);
 
 #endif

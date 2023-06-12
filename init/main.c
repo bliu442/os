@@ -14,9 +14,8 @@
 #include "../include/stdlib.h"
 #include "../include/kernel/debug.h"
 #include "../include/kernel/hd.h"
+#include "../include/kernel/shell.h"
 
-extern void k_thread_a(void *arg);
-extern void k_thread_b(void *arg);
 extern void u_process_a(void);
 
 void _start(void) {
@@ -38,27 +37,17 @@ void _start(void) {
 	console_init(); //之后使用C语言写的显卡驱动
 	printk_init();
 
+	shell_init();
 	hd_init();
 
-	thread_start("k_thread_a", 31, k_thread_a, "argA ");
-	thread_start("k_thread_b", 8, k_thread_b, "argB ");
-	process_start(u_process_a, "u_process_a");
+	thread_start("shell", 31, shell, NULL);
+	// process_start(u_process_a, "u_process_a");
 
 	STI
 	out_byte(PIC_M_DATA, 0b11111000); //打开0时钟中断 1键盘中断 2号级联
 	out_byte(PIC_S_DATA, 0b00111111); //打开两个硬盘中断 14 15
 
 	printk("main pid : %#x\r", sys_get_pid());
-	while(1);
-}
-
-void k_thread_a(void *arg) {
-	printk("k_thread_a pid : %#x\r", sys_get_pid());
-	while(1);
-}
-
-void k_thread_b(void *arg) {
-	printk("k_thread_b pid : %#x\r", sys_get_pid());
 	while(1);
 }
 
