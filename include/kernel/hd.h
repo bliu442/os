@@ -26,9 +26,13 @@
 
 #include "../stdint.h"
 #include "./sync.h"
+#include "./bitmap.h"
 
 #define SECTOR_SIZE 512
 
+typedef struct super_block super_block_t;
+
+/* 分区表结构 */
 typedef struct partition {
 	uint8_t bootable; //是否可引导 0x80
 	uint8_t start_head;
@@ -56,6 +60,10 @@ typedef struct hd_partition {
 	uint32_t sector_number;
 	disk_t *disk; //分区所属硬盘
 	list_item_t part_list_item;
+	super_block_t *sb; //分区的超级块
+	bitmap_t block_bitmap; //块位图
+	bitmap_t inode_bitmap; //inode位图
+	list_t open_inodes; //分区打开的inode队列
 }hd_partition_t;
 
 typedef struct hd_channel hd_channel_t;
@@ -89,6 +97,9 @@ typedef struct hd_channel{
 	disk_t disk[2];
 }hd_channel_t;
 extern hd_channel_t channels[2];
+extern const uint8_t channel_number;
+
+extern list_t partition_list;
 
 extern void hd_init(void);
 extern void hd_read_sector(disk_t *hd, uint32_t lba, uint8_t count, void *buf);

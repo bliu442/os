@@ -47,7 +47,7 @@ void printk_hex(void *buf, uint32_t len) {
 					printk("\r");
 				printk("[HEX]: ", COLOR_GREEN);
 			}
-			printk("%2x ", *ptr++);
+			printk("%#2x ", *ptr++);
 		}
 		printk("\r");
 	}
@@ -63,7 +63,7 @@ void printf_hex(void *buf, uint32_t len) {
 					printf("\r");
 				printf("[HEX]: ");
 			}
-			printf("%2x ", *ptr++);
+			printf("%#2x ", *ptr++);
 		}
 		printf("\r");
 	}

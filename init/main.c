@@ -15,6 +15,7 @@
 #include "../include/kernel/debug.h"
 #include "../include/kernel/hd.h"
 #include "../include/kernel/shell.h"
+#include "../include/kernel/fs.h"
 
 extern void u_process_a(void);
 
@@ -39,7 +40,8 @@ void _start(void) {
 
 	shell_init();
 	hd_init();
-
+	file_system_init();
+	
 	thread_start("shell", 31, shell, NULL);
 	// process_start(u_process_a, "u_process_a");
 
