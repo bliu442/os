@@ -5,6 +5,8 @@
 #include "./mm.h"
 #include "./list.h"
 
+#define MAX_FILES_OPEN_PRE_PROCESS 8
+
 extern list_t thread_ready_list;
 extern list_t thread_all_list;
 
@@ -72,6 +74,7 @@ typedef struct task {
 	uint32_t cr3; //进程页表管理
 	memory_pool_t user_virtual_pool; //进程虚拟地址管理
 	bucket_dir_t user_bucket_dir[10];
+	int32_t fd_table[MAX_FILES_OPEN_PRE_PROCESS]; //文件描述符数组
 	char name[32];
 	uint32_t magic; //魔数 用于判断堆栈溢出
 }task_t;

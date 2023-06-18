@@ -73,7 +73,6 @@ static void out_param(disk_t *hd, uint32_t lba, uint8_t count) {
 }
 
 static void out_cmd(hd_channel_t *channel, uint8_t cmd) {
-	channel->expecting_intrrupt = true;
 	out_byte(HD_CMD(channel), cmd);
 }
 
@@ -317,6 +316,7 @@ void hd_write_sector(disk_t *hd, uint32_t lba, uint8_t count, uint8_t *buf) {
 	port_write(HD_DATA(hd->channel), buf, count * SECTOR_SIZE / 2);
 }
 
+/* bug 打开中断后自动进来一次,后续再不产生中断了 更改初始化顺序,把硬盘操作都放到开中断后面了,但不知道原因是啥 */
 void hd_handler(uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, uint32_t edi, uint32_t esi,
 	uint32_t ebp, uint32_t esp, uint32_t ebx, uint32_t edx, uint32_t ecx, uint32_t eax,
 	uint32_t irq_no) {
@@ -327,9 +327,9 @@ void hd_handler(uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, uint32_t edi
 	if(channel->expecting_intrrupt) {
 		channel->expecting_intrrupt = false;
 		semaphore_up(&channel->disk_done);
-
-		in_byte(HD_STATUS(channel)); //清中断
 	}
+
+	in_byte(HD_STATUS(channel)); //清中断
 }
 
 /*
@@ -350,6 +350,7 @@ void hd_read(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf) {
 			sector_number = count;
 
 		out_param(hd, lba, sector_number);
+		hd->channel->expecting_intrrupt = true;
 		out_cmd(hd->channel, CMD_READ);
 
 		semaphore_down(&hd->channel->disk_done); //等待硬盘将数据读到硬盘缓冲区中
@@ -386,6 +387,7 @@ void hd_write(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf) {
 			sector_number = count;
 
 		out_param(hd, lba, sector_number);
+		hd->channel->expecting_intrrupt = true;
 		out_cmd(hd->channel, CMD_WRITE);
 
 		if(!hd_wait(hd))

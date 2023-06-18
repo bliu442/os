@@ -10,6 +10,7 @@
 #include "../include/kernel/debug.h"
 #include "../include/kernel/print.h"
 #include "../include/kernel/sched.h"
+#include "../include/unistd.h"
 
 task_union_t *main_thread;
 task_union_t *idle_thread;
@@ -110,6 +111,11 @@ void thread_init(task_union_t *pthread, char *name, uint32_t priority) {
 	pthread->task.pid = thread_allocate_pid();
 	pthread->task.ppid = (pid_t)-1;
 	pthread->task.stack = (uint32_t)pthread + PAGE_SIZE;
+	pthread->task.fd_table[0] = STDIN_FILENO;
+	pthread->task.fd_table[1] = STDOUT_FILENO;
+	pthread->task.fd_table[2] = STDERR_FILENO;
+	for(uint32_t fd_index = 3;fd_index < MAX_FILES_OPEN_PRE_PROCESS;++fd_index)
+		pthread->task.fd_table[fd_index] = -1;
 	pthread->task.magic = 0x000055aa;
 }
 

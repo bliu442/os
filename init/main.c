@@ -16,6 +16,7 @@
 #include "../include/kernel/hd.h"
 #include "../include/kernel/shell.h"
 #include "../include/kernel/fs.h"
+#include "../include/kernel/dir.h"
 
 extern void u_process_a(void);
 
@@ -39,15 +40,17 @@ void _start(void) {
 	printk_init();
 
 	shell_init();
-	hd_init();
-	file_system_init();
-	
+
 	thread_start("shell", 31, shell, NULL);
-	// process_start(u_process_a, "u_process_a");
+	process_start(u_process_a, "u_process_a");
 
 	STI
 	out_byte(PIC_M_DATA, 0b11111000); //打开0时钟中断 1键盘中断 2号级联
 	out_byte(PIC_S_DATA, 0b00111111); //打开两个硬盘中断 14 15
+
+	hd_init();
+	file_system_init();
+
 
 	printk("main pid : %#x\r", sys_get_pid());
 	while(1);

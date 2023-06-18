@@ -1,11 +1,9 @@
 #include "../include/kernel/fs.h"
-#include "../include/kernel/hd.h"
 #include "../include/kernel/mm.h"
 #include "../include/string.h"
+#include "../include/kernel/dir.h"
 
 #include "../include/kernel/debug.h"
-
-#define BLOCK_SIZE SECTOR_SIZE
 
 #define MAX_FILE_NUMBER 4096
 
@@ -160,7 +158,7 @@ static bool mount_partition(list_item_t *pitem, int arg) {
 			return;
 		}
 		current_part->inode_bitmap.bitmap_byte_len = sb->inode_bitmap_sectors * SECTOR_SIZE;
-		hd_read_sector(hd, sb->inode_bitmap_lba, sb->inode_bitmap_sectors, current_part->inode_bitmap.map);
+		hd_read_sector(hd, sb->inode_bitmap_lba, sb->inode_bitmap_sectors, current_part->inode_bitmap.map); //bug
 
 		list_init(&current_part->open_inodes);
 		INFO("mount %s\r", part_name);
@@ -215,4 +213,55 @@ void file_system_init(void) {
 
 	char default_part[] = "ata0-S-1";
 	list_traverasl(&partition_list, mount_partition, (int)default_part);
+	create_root_dir(current_part);
+	open_root_dir(current_part);
+}
+
+/*
+ @brief 申请一个空闲节点
+ @retval 返回节点号
+ */
+int32_t inode_bitmap_alloc(hd_partition_t *part) {
+	int32_t bit_index = bitmap_continuous_scan(&part->inode_bitmap, 1);
+	if(bit_index == -1)
+		return -1;
+	
+	bitmap_set(&part->inode_bitmap, bit_index, bitmap_used);
+	return bit_index;
+}
+
+/*
+ @brief 申请一个空闲块
+ @retval 返回扇区地址
+ */
+int32_t block_bitmap_alloc(hd_partition_t *part) {
+	int32_t bit_index = bitmap_continuous_scan(&part->block_bitmap, 1);
+	if(bit_index == -1)
+		return -1;
+	
+	bitmap_set(&part->block_bitmap, bit_index, bitmap_used);
+	return part->sb->data_start_lba + bit_index;
+}
+
+/*
+ @brief 将内存中的bitmap同步到硬盘里
+ */
+void bitmap_sync(hd_partition_t *part, uint32_t index, bitmap_type_t type) {
+	uint32_t offset_sector = index / BITS_PER_SECTOR;
+	uint32_t offset_byte = offset_sector * SECTOR_SIZE;
+
+	uint32_t sector_lba; //硬盘位图地址
+	uint8_t *offset; //内存位图地址
+
+	switch(type) {
+		case BITMAP_INODE:
+			sector_lba = part->sb->inode_bitmap_lba + offset_sector;
+			offset = part->inode_bitmap.map + offset_byte;
+			break;
+		case BITMAP_BLOCK:
+			sector_lba = part->sb->block_bitmap_lba + offset_sector;
+			offset = part->block_bitmap.map + offset_byte;
+			break;
+	}
+	hd_write(part->disk, sector_lba, 1, offset);
 }

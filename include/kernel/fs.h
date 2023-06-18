@@ -12,11 +12,16 @@
 
 #include "../stdint.h"
 #include "./list.h"
+#include "./hd.h"
 
 #define MAX_FILE_NAME_LEN 16
+
 #define PAGE_SIZE 4096
 #define SECTOR_SIZE 512
 #define BITS_PER_SECTOR (SECTOR_SIZE * 8)
+#define BLOCK_SIZE SECTOR_SIZE
+
+extern hd_partition_t *current_part;
 
 typedef enum file_type {
 	FILE_REGULAR = 1, //文件
@@ -28,6 +33,11 @@ typedef enum fs_type {
 	FS_FAT32,
 	FS_NTFS,
 }fs_type_t;
+
+typedef enum bitmap_type {
+	BITMAP_INODE = 1,
+	BITMAP_BLOCK,
+}bitmap_type_t;
 
 typedef struct super_block {
 	uint32_t magic; //文件系统类型
@@ -57,9 +67,9 @@ typedef struct inode {
 	uint32_t i_mode; //属性 rwx
 	uint32_t i_size; //大小
 	uint32_t i_time; //修改时间
-	uint32_t i_open_counts;
 	uint32_t i_zone[13]; //文件
 	list_item_t i_list_item;
+	uint32_t i_open_counts; //统计文件打开次数
 	bool i_write_deny;
 }__attribute__((packed)) inode_t;
 
@@ -70,5 +80,8 @@ typedef struct dir_entry {
 }__attribute__((packed)) dir_entry_t;
 
 extern void file_system_init(void);
+extern int32_t inode_bitmap_alloc(hd_partition_t *part);
+extern int32_t block_bitmap_alloc(hd_partition_t *part);
+extern void bitmap_sync(hd_partition_t *part, uint32_t index, bitmap_type_t type);
 
 #endif
