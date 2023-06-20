@@ -80,8 +80,8 @@ typedef struct disk {
 	uint16_t head; //磁头数
 	uint16_t track_sectors; //磁道扇区数
 	char number[20+ 1]; //硬盘序列号
-	uint16_t buffer_type; //缓冲区类型(?)
-	uint16_t buffer_size; //缓冲区大小(KB ?)
+	uint16_t buffer_type; //缓冲区类型 (3 写入缓存)
+	uint16_t buffer_size; //缓冲区大小 (byte 淦)
 	char model[40 + 1]; //硬盘型号
 	int sectors; //扇区数
 }disk_t;

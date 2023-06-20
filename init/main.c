@@ -51,6 +51,8 @@ void _start(void) {
 	hd_init();
 	file_system_init();
 
+	volatile uint8_t buf[1024] = {0};
+	hd_read(&channels[0].disk[0], 0, 2, buf);
 
 	printk("main pid : %#x\r", sys_get_pid());
 	while(1);

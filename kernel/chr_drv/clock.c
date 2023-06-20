@@ -53,8 +53,11 @@ void clock_handler(void) {
 
 static void sleep(uint32_t ticks) {
 	uint32_t start_ticks = systicks;
-	while(systicks != start_ticks + ticks)
+	uint32_t sleep_ticks = 0;
+	while(sleep_ticks < ticks) {
 		thread_yield();
+		sleep_ticks = systicks > start_ticks ? systicks - start_ticks : 0xFFFFFFFF - start_ticks + systicks + 1;
+	}
 }
 
 /*

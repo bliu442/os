@@ -158,7 +158,7 @@ static bool mount_partition(list_item_t *pitem, int arg) {
 			return;
 		}
 		current_part->inode_bitmap.bitmap_byte_len = sb->inode_bitmap_sectors * SECTOR_SIZE;
-		hd_read_sector(hd, sb->inode_bitmap_lba, sb->inode_bitmap_sectors, current_part->inode_bitmap.map); //bug
+		hd_read_sector(hd, sb->inode_bitmap_lba, sb->inode_bitmap_sectors, current_part->inode_bitmap.map);
 
 		list_init(&current_part->open_inodes);
 		INFO("mount %s\r", part_name);

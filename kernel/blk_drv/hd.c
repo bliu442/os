@@ -1,3 +1,8 @@
+/*
+ 1.阻塞等待硬盘相应,大量占用cpu时间,效率极低
+ 2.中断等待硬盘相应,能够让出cpu执行其他线程,多扇区读写时会频繁产生中断,该线程被多次阻塞,任务调度也浪费部分时间
+ 3.dma方式自动处理数据传输,cpu等待一次中断 dma完成中断
+ */
 #include "../../include/kernel/hd.h"
 #include "../../include/string.h"
 #include "../../include/asm/system.h"
@@ -262,6 +267,14 @@ void hd_init(void) {
 	list_traverasl(&partition_list, partition_info, NULL);
 }
 
+static void hd_read_a_sector(disk_t *hd, uint8_t *buf) {
+	port_read(HD_DATA(hd->channel), buf, SECTOR_SIZE / 2);
+}
+
+static void hd_write_a_sector(disk_t *hd, uint8_t *buf) {
+	port_write(HD_DATA(hd->channel), buf, SECTOR_SIZE / 2);
+}
+
 /*
  @brief 阻塞方式读硬盘
  @param hd 硬盘
@@ -278,15 +291,20 @@ void hd_read_sector(disk_t *hd, uint32_t lba, uint8_t count, void *buf) {
 	}
 
 	out_param(hd, lba, count);
-	out_cmd(hd->channel, CMD_READ);
 
-	while(1) {
-		status = in_byte(HD_STATUS(hd->channel));
-		if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
-			break;
+	while(count--) {
+		out_cmd(hd->channel, CMD_READ);
+
+		while(1) {
+			status = in_byte(HD_STATUS(hd->channel));
+			if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
+				break;
+		}
+
+		hd_read_a_sector(hd, buf);
+		
+		buf += SECTOR_SIZE;
 	}
-
-	port_read(HD_DATA(hd->channel), buf, count * SECTOR_SIZE / 2);
 }
 
 /*
@@ -305,15 +323,20 @@ void hd_write_sector(disk_t *hd, uint32_t lba, uint8_t count, uint8_t *buf) {
 	}
 
 	out_param(hd, lba, count);
-	out_cmd(hd->channel, CMD_WRITE);
 
-	while(1) {
-		status = in_byte(HD_STATUS(hd->channel));
-		if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
-			break;
+	while(count--) {
+		out_cmd(hd->channel, CMD_WRITE);
+
+		while(1) {
+			status = in_byte(HD_STATUS(hd->channel));
+			if((status & (READY_STAT | SEEK_STAT | DRQ_STAT)) == (READY_STAT | SEEK_STAT | DRQ_STAT))
+				break;
+		}
+
+		hd_write_a_sector(hd, buf);
+
+		buf += SECTOR_SIZE;
 	}
-
-	port_write(HD_DATA(hd->channel), buf, count * SECTOR_SIZE / 2);
 }
 
 /* bug 打开中断后自动进来一次,后续再不产生中断了 更改初始化顺序,把硬盘操作都放到开中断后面了,但不知道原因是啥 */
@@ -350,18 +373,22 @@ void hd_read(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf) {
 			sector_number = count;
 
 		out_param(hd, lba, sector_number);
-		hd->channel->expecting_intrrupt = true;
-		out_cmd(hd->channel, CMD_READ);
 
-		semaphore_down(&hd->channel->disk_done); //等待硬盘将数据读到硬盘缓冲区中
+		uint8_t tmp = sector_number;
+		while(tmp--) {
+			hd->channel->expecting_intrrupt = true;
+			out_cmd(hd->channel, CMD_READ);
 
-		/* 硬盘准备好数据后,产生中断,中断中释放信号量,继续执行代码 */
-		if(!hd_wait(hd))
-			PANIC("read disk error\r\n");
+			semaphore_down(&hd->channel->disk_done); //等待中断产生,之后可以将数据从io端口读到内存中
 
-		port_read(HD_DATA(hd->channel), buf, sector_number * SECTOR_SIZE / 2);
+			/* 硬盘准备好数据后,产生中断,中断中释放信号量,继续执行代码 */
+			if(!hd_wait(hd))
+				PANIC("read disk error\r\n");
 
-		buf += sector_number * SECTOR_SIZE;
+			hd_read_a_sector(hd, buf);
+			buf += SECTOR_SIZE;
+		}
+
 		lba += sector_number;
 		count -= sector_number;
 	}
@@ -387,18 +414,21 @@ void hd_write(disk_t *hd, uint32_t lba, uint32_t count, uint8_t *buf) {
 			sector_number = count;
 
 		out_param(hd, lba, sector_number);
-		hd->channel->expecting_intrrupt = true;
-		out_cmd(hd->channel, CMD_WRITE);
 
-		if(!hd_wait(hd))
-			PANIC("write disk error\r\n");
+		uint8_t tmp = sector_number;
+		while(tmp--) {
+			hd->channel->expecting_intrrupt = true;
+			out_cmd(hd->channel, CMD_WRITE);
 
-		port_write(HD_DATA(hd->channel), buf, sector_number * SECTOR_SIZE / 2);
+			if(!hd_wait(hd))
+				PANIC("write disk error\r\n");
 
-		semaphore_down(&hd->channel->disk_done); //等待硬盘将数据从硬盘缓冲区写入硬盘
+			hd_write_a_sector(hd, buf);
+			buf += SECTOR_SIZE;
 
-		/* 硬盘写完数据后,产生中断,中断中释放信号量,继续执行代码 */
-		buf += sector_number * SECTOR_SIZE;
+			semaphore_down(&hd->channel->disk_done); //等待硬盘将数据从硬盘缓冲区写入硬盘
+		}
+
 		lba += sector_number;
 		count -= sector_number;
 	}
