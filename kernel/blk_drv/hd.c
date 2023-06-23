@@ -10,6 +10,7 @@
 #include "../../include/kernel/mm.h"
 
 #define TAG "disk"
+#define DEBUG_LEVEL 2
 #include "../../include/kernel/debug.h"
 
 #define HD_DATA(channel)		(channel->port_base + 0) //0x1F0 16位寄存器

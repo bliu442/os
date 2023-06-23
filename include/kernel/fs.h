@@ -23,8 +23,16 @@
 
 extern hd_partition_t *current_part;
 
+enum {
+	O_RDONLY,
+	O_WRONLY,
+	O_RDWR,
+	O_CREAT,
+};
+
 typedef enum file_type {
-	FILE_REGULAR = 1, //文件
+	FILE_NULL = 0,
+	FILE_REGULAR, //文件
 	FILE_DIRECTORY, //目录
 }file_type_t;
 
@@ -65,9 +73,9 @@ typedef struct super_block {
 typedef struct inode {
 	uint32_t i_no; //inode 编号
 	uint32_t i_mode; //属性 rwx
-	uint32_t i_size; //大小
+	uint32_t i_size; //文件大小
 	uint32_t i_time; //修改时间
-	uint32_t i_zone[13]; //文件
+	uint32_t i_zone[13]; //文件 0-11存直接块(存储的就是文件数据),12存一级间接块(存储直接块地址) 二级间接块(存储一级间接块地址) [13] = 12 + (512 / 4);[14] = 12 + (512 / 4) + (512 / 4) * (512 / 4) [15]...
 	list_item_t i_list_item;
 	uint32_t i_open_counts; //统计文件打开次数
 	bool i_write_deny;

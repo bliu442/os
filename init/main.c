@@ -17,6 +17,7 @@
 #include "../include/kernel/shell.h"
 #include "../include/kernel/fs.h"
 #include "../include/kernel/dir.h"
+#include "../include/kernel/file.h"
 
 extern void u_process_a(void);
 
@@ -51,8 +52,9 @@ void _start(void) {
 	hd_init();
 	file_system_init();
 
-	volatile uint8_t buf[1024] = {0};
-	hd_read(&channels[0].disk[0], 0, 2, buf);
+	file_create(&root_dir, "file1", O_CREAT);
+	file_create(&root_dir, "file2", O_CREAT);
+	file_create(&root_dir, "file3", O_CREAT);
 
 	printk("main pid : %#x\r", sys_get_pid());
 	while(1);

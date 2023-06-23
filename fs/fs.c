@@ -219,7 +219,7 @@ void file_system_init(void) {
 
 /*
  @brief 申请一个空闲节点
- @retval 返回节点号
+ @retval 返回节点号 错误返回-1
  */
 int32_t inode_bitmap_alloc(hd_partition_t *part) {
 	int32_t bit_index = bitmap_continuous_scan(&part->inode_bitmap, 1);
@@ -232,7 +232,7 @@ int32_t inode_bitmap_alloc(hd_partition_t *part) {
 
 /*
  @brief 申请一个空闲块
- @retval 返回扇区地址
+ @retval 返回扇区地址 错误返回-1
  */
 int32_t block_bitmap_alloc(hd_partition_t *part) {
 	int32_t bit_index = bitmap_continuous_scan(&part->block_bitmap, 1);

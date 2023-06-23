@@ -35,7 +35,11 @@ static void inode_locate(hd_partition_t *part, uint32_t inode_no, inode_position
 	indoe_pos->offset = offset_byte_in_sector;
 }
 
-/* 将inode同步到硬盘 */
+/*
+ @brief 将inode同步到硬盘
+ @param inode inode地址
+ @buf 缓冲区
+ */
 void inode_sync(hd_partition_t *part, inode_t *inode, void *buf) {
 	uint8_t inode_no = inode->i_no;
 	inode_position_t inode_pos;
@@ -118,6 +122,11 @@ void inode_close(inode_t *inode) {
 	STI_FUNC
 }
 
+/*
+ @brief 初始化inode
+ @param inode_no inode索引
+ @param new_inode inode地址
+ */
 void inode_init(uint32_t inode_no, inode_t *new_inode) {
 	new_inode->i_no = inode_no;
 	new_inode->i_mode = 0;

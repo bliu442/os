@@ -193,8 +193,6 @@ void keymap_handler(void) {
 	if(ch == INV)
 		return;
 
-	printk("%c", ch);
-
 	if(!ioqueue_full(&keyboard_buf))
 		ioqueue_putchar(&keyboard_buf, ch);
 }
