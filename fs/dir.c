@@ -10,8 +10,8 @@ dir_t root_dir;
 /*
  @brief 创建目录项
  @param filename 文件名
- @param inode_no inode索引
- @param file_type 文件类型
+ @param inode_no 该文件的inode索引
+ @param file_type 该文件类型
  @param p_de dir_entry地址
  */
 void dir_entry_create(char *filename, uint32_t inode_no, file_type_t file_type, dir_entry_t *p_de) {
@@ -115,6 +115,68 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 	}
 
 	WARN("dir entry is full\r");
+	return false;
+}
+
+/*
+ @brief 在指定目录中查找指定文件名的目录项
+ @param parent_dir 父目录
+ @param name 要查找的文件名
+ @param dir_entry 缓冲区
+ */
+bool dir_entry_search(hd_partition_t *part, dir_t *parent_dir, const char *name, dir_entry_t *dir_entry) {
+	uint32_t block_number = 12;
+	uint32_t all_block[140] = {0};
+	uint32_t block_index = 0;
+	inode_t *dir_inode = parent_dir->inode;
+
+	while(block_index < block_number) {
+		all_block[block_index] = dir_inode->i_zone[block_index];
+		block_index++;
+	}
+	if(dir_inode->i_zone[block_index] != 0) {
+		hd_read(part->disk, dir_inode->i_zone[block_index], 1, &all_block[block_index]);
+		block_number = 140;
+	}
+	block_index = 0;
+
+	uint8_t *buf = kmalloc(SECTOR_SIZE);
+	if(buf == NULL) {
+		WARN("kmalloc");
+		return false;
+	}
+	dir_entry_t *p_de = (dir_entry_t *)buf;
+	uint32_t dir_entry_size = part->sb->dir_entry_size;
+	uint32_t dir_entrys_per_sector = SECTOR_SIZE / dir_entry_size;
+	uint32_t dir_entry_index = 0;
+
+	while(block_index < block_number) {
+		if(all_block[block_index] == 0) {
+			block_index++;
+			continue;
+		}
+
+		hd_read(part->disk, all_block[block_index], 1, (uint8_t *)p_de);
+
+		dir_entry_index = 0;
+		while(dir_entry_index < dir_entrys_per_sector) {
+			if(!strcmp(p_de->filename, name)) {
+				memcpy(dir_entry, p_de, dir_entry_size); // 找到了
+
+				kfree(buf, SECTOR_SIZE);
+				return true;
+			}
+
+			dir_entry_index++;
+			p_de++;
+		}
+
+		block_index++;
+		p_de = (dir_entry_t *)buf;
+		memset(p_de, 0, SECTOR_SIZE);
+	}
+
+	kfree(buf, SECTOR_SIZE);
 	return false;
 }
 
@@ -225,5 +287,25 @@ dir_entry_t *dir_read(dir_t *dir) {
 	}
 
 	return NULL;
+}
+
+dir_t *dir_open(hd_partition_t *part, uint32_t inode_no) {
+	dir_t *dir = kmalloc(sizeof(dir_t));
+	if(dir == NULL) {
+		WARN("kmalloc");
+		return NULL;
+	}
+	dir->inode = inode_open(part, inode_no);
+	dir->dir_pos = 0;
+	
+	return dir;
+}
+
+void dir_close(dir_t *dir) {
+	if(dir == &root_dir)
+		return;
+	
+	inode_close(dir->inode);
+	kfree(dir, sizeof(dir_t));
 }
 

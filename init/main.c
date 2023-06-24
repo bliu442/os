@@ -56,6 +56,10 @@ void _start(void) {
 	file_create(&root_dir, "file2", O_CREAT);
 	file_create(&root_dir, "file3", O_CREAT);
 
+	sys_open("/file3", O_CREAT);
+	sys_open("/file4", O_CREAT);
+	sys_mkdir("/dir1");
+
 	printk("main pid : %#x\r", sys_get_pid());
 	while(1);
 }

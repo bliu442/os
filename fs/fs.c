@@ -2,7 +2,10 @@
 #include "../include/kernel/mm.h"
 #include "../include/string.h"
 #include "../include/kernel/dir.h"
+#include "../include/kernel/file.h"
+#include "../include/kernel/inode.h"
 
+#define TAG "fs"
 #include "../include/kernel/debug.h"
 
 #define MAX_FILE_NUMBER 4096
@@ -264,4 +267,264 @@ void bitmap_sync(hd_partition_t *part, uint32_t index, bitmap_type_t type) {
 			break;
 	}
 	hd_write(part->disk, sector_lba, 1, offset);
+}
+
+/*
+ @brief 从文件路径中提取最上层文件名并返回剩余路径
+ @param pathname 文件路径名
+ @param name_store 存储文件名的字符指针
+ @retval 剩余路径
+ */
+char *path_parse(char *pathname, char *name_store) {
+	if(pathname[0] == '/') // 跳过根目录
+		while(*(++pathname) == '/');
+	
+	// 提取路径中的文件名
+	while(*pathname != '/' && *pathname != '\0')
+		*name_store++ = *pathname++;
+
+	if(pathname[0] == '\0')
+		return NULL;
+	
+	return pathname;
+}
+
+/*
+ @brief 计算文件路径的深度
+ @param pathname 文件路径名
+ @retval 深度
+ */
+int32_t path_depth_count(char *pathname) {
+	ASSERT(pathname != NULL);
+	char *ptr = pathname;
+	char name[MAX_FILE_NAME_LEN];
+	uint32_t depth = 0;
+
+	ptr = path_parse(ptr, name);
+	while(name[0]) {
+		depth++;
+		memset(name, 0, sizeof(name));
+		if(ptr) // 路径不为空,继续提取
+			ptr = path_parse(ptr, name);
+	}
+
+	return depth;
+}
+
+/*
+ @brief 查找指定路径的文件或目录
+ @param pathname 路径名
+ @param searched_record 记录文件搜索的过程和结果
+ */
+int search_file(const char *pathname, path_search_record_t *searched_record) {
+	if(!strcmp(pathname, "/") || !strcmp(pathname, "/.") || !strcmp(pathname, "/..")) { // 跳过根目录
+		searched_record->parent_dir = &root_dir;
+		searched_record->file_type = FILE_DIRECTORY;
+		searched_record->searched_path[0] = '\0';
+		return current_part->sb->root_inode_no;
+	}
+
+	uint32_t path_len = strlen(pathname);
+	ASSERT(pathname[0] == '/' && path_len > 1 && path_len < MAX_PATH_LEN);
+	char *sub_path = (char *)pathname;
+	dir_t *parent_dir = &root_dir;
+	dir_entry_t dir_entry;
+
+	char name[MAX_FILE_NAME_LEN] = {0};
+
+	searched_record->parent_dir = parent_dir;
+	searched_record->file_type = FILE_NULL;
+	uint32_t parent_inode_no = current_part->sb->root_inode_no; // 备份已经解析的路径的父目录
+
+	sub_path = path_parse(sub_path, name); // 逐级解析路径,name提取的文件名 sub_path:剩余路径
+	while(name[0]) {
+		ASSERT(strlen(searched_record->searched_path) < MAX_PATH_LEN);
+
+		strcat(searched_record->searched_path, "/");
+		strcat(searched_record->searched_path, name);
+
+		if(dir_entry_search(current_part, parent_dir, name, &dir_entry)) {
+			if(FILE_DIRECTORY == dir_entry.f_type) {
+				parent_inode_no = parent_dir->inode->i_no;
+				dir_close(parent_dir);
+				parent_dir = dir_open(current_part, dir_entry.inode_no);
+				searched_record->parent_dir = parent_dir;
+			} else if(FILE_REGULAR == dir_entry.f_type) {
+				searched_record->file_type = FILE_REGULAR;
+				return dir_entry.inode_no; //找到了文件
+			}
+		} else {
+			return -1; // 找不到
+		}
+
+		memset(name, 0, MAX_FILE_NAME_LEN);
+		if(sub_path) // 继续解析
+			sub_path = path_parse(sub_path, name);
+	}
+
+	searched_record->file_type = FILE_DIRECTORY; // 找到了目录
+	dir_close(searched_record->parent_dir);
+	searched_record->parent_dir = dir_open(current_part, parent_inode_no);
+
+	return dir_entry.inode_no;
+}
+
+/*
+ @brief 打开或创建文件
+ @retval 文件描述符
+ */
+int32_t sys_open(const char *pathname, uint8_t flag) {
+	if(pathname[strlen(pathname) -1] == '/') {
+		ERROR("can't open a directory %s\r", pathname);
+		return -1;
+	}
+
+	int32_t fd = -1;
+	uint32_t pathname_depth = path_depth_count(pathname);
+
+	path_search_record_t searched_record = {0};
+	int inode_no = search_file(pathname, &searched_record);
+	bool found = inode_no == -1 ? false : true;
+
+	if(searched_record.file_type == FILE_DIRECTORY) { // 找到的是目录
+		ERROR("can't open a directory\r");
+		goto error_return;
+	}
+
+	uint32_t searched_path_depth = path_depth_count(searched_record.searched_path);
+	if(pathname_depth != searched_path_depth) { // 目录层级有问题，缺少目录
+		ERROR("can't access %s : not a directory, subpath %s is't exist\r", pathname, searched_record.searched_path);
+		goto error_return;
+	}
+
+	if(!found && !(flag & O_CREAT)) { // 没有找到且不是创建文件
+		ERROR("in path %s, file %s is't exist\r", searched_record.searched_path, strrchr(searched_record.searched_path, '/') + 1);
+		goto error_return;
+	} else if(found && (flag & O_CREAT)) { // 找到了但是创建文件
+		ERROR("%s has already exist\r", pathname);
+		goto error_return;
+	}
+
+	switch(flag & O_CREAT)
+	{
+		case O_CREAT:
+			INFO("create file\r");
+			fd = file_create(searched_record.parent_dir, strrchr(pathname, '/') + 1, flag);
+			dir_close(searched_record.parent_dir);
+			break;
+		default:
+			fd = file_open(inode_no, flag);
+	}
+
+	return fd;
+
+error_return:
+	dir_close(searched_record.parent_dir);
+	return -1;
+}
+
+/*
+ @brief 创建新目录
+ @retval 0:成功 -1:失败
+ @note 写了四次硬盘
+ 1.新创建目录分配空闲块写入. ..
+ 2.父目录block写入新创建目录的dir_entry
+ 3.父目录inode节点更新
+ 4.新目录inode节点写入
+ 
+ 另外还有位图更新
+ */
+int32_t sys_mkdir(const char *pathname) {
+	uint8_t rollback_step = 0;
+
+	// 1.分配缓冲空间
+	void *buf = kmalloc(SECTOR_SIZE * 2);
+	if(buf == NULL) {
+		WARN("kmalloc\r");
+		return -1;
+	}
+	memset(buf, 0, SECTOR_SIZE * 2);
+
+	// 2.查找目录是否已经存在,确定新目录应该放在哪个父目录下
+	path_search_record_t searched_record = {0};
+	int inode_no = search_file(pathname, &searched_record);
+	if(inode_no != -1) {
+		ERROR("file or directory %s exist\r", pathname);
+		rollback_step = 1;
+		goto rollback;
+	} else {
+		uint32_t path_depth = path_depth_count(pathname);
+		uint32_t searched_path_depth = path_depth_count(searched_record.searched_path);
+		if(path_depth != searched_path_depth) {
+			ERROR("can't access %s, subpath %s is't exist\r", pathname, searched_record.searched_path);
+			rollback_step = 1;
+			goto rollback;
+		}
+	}
+
+	// 3.分配新目录的inode节点和数据块，并将其初始化
+	dir_t *parent_dir = searched_record.parent_dir;
+	char *dirname = strrchr(pathname, '/') + 1;
+	inode_no = inode_bitmap_alloc(current_part);
+	if(inode_no == -1) {
+		ERROR("allocate inode failed\r");
+		rollback_step = 1;
+		goto rollback;
+	}
+	
+	inode_t new_dir_inode;
+	inode_init(inode_no, &new_dir_inode);
+
+	uint32_t block_bitmap_index = 0;
+	int32_t block_lba = -1;
+	block_lba = block_bitmap_alloc(current_part);
+	if(block_lba == -1) {
+		ERROR("allocate block failed\r");
+		rollback_step = 2;
+		goto rollback;
+	}
+	new_dir_inode.i_zone[0] = block_lba;
+	block_bitmap_index = block_lba - current_part->sb->data_start_lba;
+	bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+
+	dir_entry_t *p_de = (dir_entry_t *)buf;
+	dir_entry_create(".", inode_no, FILE_DIRECTORY, p_de);
+	dir_entry_create("..", inode_no, FILE_DIRECTORY, p_de + 1);
+	hd_write(current_part->disk, new_dir_inode.i_zone[0], 1, (uint8_t *)p_de);
+	new_dir_inode.i_size = current_part->sb->dir_entry_size * 2;
+
+	// 4.在父目录中创建一个新的目录项，并将其写入磁盘
+	dir_entry_t new_dir_entry = {0};
+	dir_entry_create(dirname, inode_no, FILE_DIRECTORY, &new_dir_entry);
+	memset(buf, 0, SECTOR_SIZE * 2);
+	if(!dir_entry_sync(parent_dir, &new_dir_entry, buf)) {
+		ERROR("dir_entry_sync to disk failed\r");
+		rollback_step = 2;
+		goto rollback;
+	}
+
+	// 5.将新目录的inode节点和父目录的inode节点同步到磁盘上
+	memset(buf, 0, SECTOR_SIZE * 2);
+	inode_sync(current_part, parent_dir->inode, buf);
+
+	memset(buf, 0, SECTOR_SIZE * 2);
+	inode_sync(current_part, &new_dir_inode, buf);
+
+	bitmap_sync(current_part, inode_no, BITMAP_INODE);
+
+	kfree(buf, SECTOR_SIZE * 2);
+	dir_close(searched_record.parent_dir);
+	return 0;
+
+rollback:
+	switch(rollback_step) {
+		case 2:
+			bitmap_set(&current_part->inode_bitmap, inode_no, bitmap_unused);
+		case 1:
+			dir_close(searched_record.parent_dir);
+			break;
+	}
+
+	kfree(buf, SECTOR_SIZE * 2);
+	return -1;
 }

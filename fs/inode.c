@@ -59,11 +59,14 @@ void inode_sync(hd_partition_t *part, inode_t *inode, void *buf) {
 	hd_write(part->disk, inode_pos.sector_lba, count, inode_buf);
 }
 
-/* 根据inode_no 找到相应的inode */
+/*
+ @brief 打开一个指定的inode节点,以便进行后续的文件操作
+ @retval inode节点的指针
+ */
 inode_t *inode_open(hd_partition_t *part, uint32_t inode_no) {
 	list_item_t *item = part->open_inodes.head.next;
 	inode_t *inode_found;
-	while(item != &part->open_inodes.tail) { //产看该文件是否已经打开
+	while(item != &part->open_inodes.tail) { //查看该文件是否已经打开
 		inode_found = item2entry(inode_t, i_list_item, item);
 		if(inode_found->i_no == inode_no) {
 			inode_found->i_open_counts++;

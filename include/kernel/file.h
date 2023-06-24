@@ -16,5 +16,6 @@ typedef struct file {
 }file_t;
 
 extern int32_t file_create(dir_t *parent_dir, char *filename, uint8_t flag);
+extern int32_t file_open(uint32_t inode_no, uint8_t flag);
 
 #endif

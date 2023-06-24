@@ -15,6 +15,7 @@
 #include "./hd.h"
 
 #define MAX_FILE_NAME_LEN 16
+#define MAX_PATH_LEN 512
 
 #define PAGE_SIZE 4096
 #define SECTOR_SIZE 512
@@ -23,11 +24,13 @@
 
 extern hd_partition_t *current_part;
 
+typedef struct dir dir_t;
+
 enum {
-	O_RDONLY,
-	O_WRONLY,
-	O_RDWR,
-	O_CREAT,
+	O_RDONLY = 0,
+	O_WRONLY = 1,
+	O_RDWR = 2,
+	O_CREAT = 4,
 };
 
 typedef enum file_type {
@@ -87,9 +90,23 @@ typedef struct dir_entry {
 	file_type_t f_type; //文件类型
 }__attribute__((packed)) dir_entry_t;
 
+/* 记录查找文件过程 */
+typedef struct path_search_record {
+	char searched_path[MAX_PATH_LEN]; // 记录已经找的路径 
+	dir_t *parent_dir; // 已经找的路径的父目录(已经打开)
+	file_type_t file_type; // 是否找到 FILE_NULL没找到 FILE_REGULAR找到文件 FILE_DIRECTORY找到目录
+}path_search_record_t;
+
 extern void file_system_init(void);
+
 extern int32_t inode_bitmap_alloc(hd_partition_t *part);
 extern int32_t block_bitmap_alloc(hd_partition_t *part);
 extern void bitmap_sync(hd_partition_t *part, uint32_t index, bitmap_type_t type);
+
+extern char *path_parse(char *pathname, char *name_store);
+extern int32_t path_depth_count(char *pathname);
+
+extern int32_t sys_open(const char *pathname, uint8_t flag);
+extern int32_t sys_mkdir(const char *pathname);
 
 #endif

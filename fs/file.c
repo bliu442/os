@@ -9,6 +9,7 @@
 #include "../include/kernel/mm.h"
 #include "../include/string.h"
 #include "../include/kernel/inode.h"
+#include "../include/asm/system.h"
 
 #define TAG "file"
 #define DEBUG_LEVEL 4
@@ -67,6 +68,9 @@ int32_t pcb_fd_install(int32_t global_fd_index) {
  @param filename 文件名
  @param flag
  @retval 文件描述符 -1:出错
+ @note 写了两次硬盘
+ 1.父目录inode节点更新
+ 2.新目录inode节点写入
  */
 int32_t file_create(dir_t *parent_dir, char *filename, uint8_t flag) {
 	void *buf = kmalloc(1024);
@@ -138,4 +142,36 @@ roolback:
 
 	kfree(buf, 1024);
 	return -1;
+}
+
+/*
+ @brief 打开指定inode号对应的文件,并将其加入进程控制块的文件描述符表中
+ @retval 文件描述符
+ */
+int32_t file_open(uint32_t inode_no, uint8_t flag) {
+	int fd_index = get_free_slot_in_file_table();
+	if(fd_index == -1) {
+		WARN("execed max open file\r");
+		return -1;
+	}
+	file_table[fd_index].fd_inode = inode_open(current_part, inode_no);
+	file_table[fd_index].fd_flag = flag;
+	file_table[fd_index].fd_pos = 0;
+
+	bool *write_deny = &file_table[fd_index].fd_inode->i_write_deny;
+
+	if(flag == O_WRONLY || flag == O_RDWR) {
+		CLI_FUNC
+
+		if(!(*write_deny)) {
+			*write_deny = true;
+			STI_FUNC
+		} else {
+			WARN("file can't be write now, try again later\r");
+			STI_FUNC
+			return -1;
+		}
+	}
+
+	return pcb_fd_install(fd_index);
 }
