@@ -4,6 +4,7 @@
 #include "../include/kernel/dir.h"
 #include "../include/kernel/file.h"
 #include "../include/kernel/inode.h"
+#include "../include/kernel/thread.h"
 
 #define TAG "fs"
 #include "../include/kernel/debug.h"
@@ -81,7 +82,7 @@ static void super_block_init(hd_partition_t *part) {
 	sb->inode_table_sectors = inode_table_sectors;
 
 	sb->data_start_lba = sb->inode_table_lab + sb->inode_table_sectors;
-	sb->root_inode_no = 0;
+	sb->root_inode_no = 0xFFAA5500;
 	sb->dir_entry_size = sizeof(dir_entry_t);
 	
 	INFO("%s super block :\r", part->name);
@@ -95,7 +96,6 @@ static void super_block_init(hd_partition_t *part) {
 	INFO("    inode_bitmap_sectors : %d\r", sb->inode_bitmap_sectors);
 	INFO("    inode_table_sectors : %d\r", sb->inode_table_sectors);
 	INFO("    data_start_lba : %d\r", sb->data_start_lba);
-	INFO("    root_inode_no : %d\r", sb->root_inode_no);
 	INFO("    dir_entry_size : %d\r", sb->dir_entry_size);
 
 	disk_t *hd = part->disk;
@@ -200,12 +200,13 @@ void file_system_init(void) {
 
 				hd_read_sector(hd, part->sector_start + 1, 1, sb);
 
-				super_block_init(part);
-				// if(sb->magic == FS_EXT) {
-				// 	INFO("%s has filesystem\r", part->name);
-				// } else {
-				// 	super_block_init(part);
-				// }
+				// super_block_init(part);
+
+				if(sb->magic == FS_EXT) {
+					INFO("%s has filesystem\r", part->name);
+				} else {
+					super_block_init(part);
+				}
 			}
 			disk_no++;
 		}
@@ -216,8 +217,8 @@ void file_system_init(void) {
 
 	char default_part[] = "ata0-S-1";
 	list_traverasl(&partition_list, mount_partition, (int)default_part);
-	create_root_dir(current_part);
-	open_root_dir(current_part);
+	if(current_part->sb->root_inode_no == 0xFFAA5500)
+		create_root_dir(current_part);
 }
 
 /*
@@ -527,4 +528,83 @@ rollback:
 
 	kfree(buf, SECTOR_SIZE * 2);
 	return -1;
+}
+
+/*
+ @brief 打开一个目录并返回对应的目录结构体指针
+ @param 目录路径
+ @retval 目录结构体指针 NULL:失败
+ */
+dir_t *sys_opendir(const char *name) {
+	if(strcmp(name, "/") == 0)
+		return &root_dir;
+
+	dir_t *dir = NULL;
+	path_search_record_t search_record = {0};
+	int inode_no = search_file(name, &search_record);
+	if(inode_no == -1) {
+		ERROR("in path %s, sub path %s is't exist\r", name, search_record.searched_path);
+	} else {
+		if(search_record.file_type == FILE_REGULAR) {
+			ERROR("%s is regular file\r", name);
+		} else {
+			dir = dir_open(current_part, inode_no);
+		}
+	}
+
+	dir_close(search_record.parent_dir);
+	return dir;
+}
+
+int32_t sys_closedir(dir_t *dir) {
+	int32_t ret = -1;
+	if(dir != NULL) {
+		dir_close(dir);
+		ret = 0;
+	}
+	return ret;
+}
+
+/*
+ @brief 获取当前进程的工作路径
+ @param buf 存储工作路径
+ @param size buf的长度
+ */
+char *sys_getcwd(char *buf, uint32_t size) {
+	task_t *current = running_thread();
+	int32_t parent_inode_no = 0;
+	int32_t child_inode_no = current->cwd_inode_no;
+	if(child_inode_no == current_part->sb->root_inode_no) { // 根目录
+		strcpy(buf, "/");
+		return buf;
+	}
+
+	void *io_buf = kmalloc(SECTOR_SIZE + MAX_PATH_LEN);
+	if(io_buf == NULL) {
+		WARN("kmalloc\r");
+		return NULL;
+	}
+	memset(io_buf, 0, SECTOR_SIZE + MAX_PATH_LEN);
+	char *full_path = io_buf + SECTOR_SIZE;
+
+	memset(buf, 0, size);
+	while(child_inode_no != current_part->sb->root_inode_no) { //往上找父目录,直到找到根目录
+		parent_inode_no = get_parent_dir_inode_no(child_inode_no, io_buf);
+		if(get_child_dir_name(parent_inode_no, child_inode_no, full_path, io_buf) == -1) {
+			kfree(io_buf, SECTOR_SIZE + MAX_PATH_LEN);
+			return NULL;
+		}
+		child_inode_no = parent_inode_no;
+	}
+
+	ASSERT(strlen(full_path) <= size);
+	char *last_slash;
+	while(last_slash = strrchr(full_path, '/')) { // 将full_path路径名反转
+		uint32_t len = strlen(buf);
+		strcpy(buf + len, last_slash);
+		*last_slash = '\0'; // 将’/‘更改为’\0‘,继续查找
+	}
+
+	kfree(io_buf, SECTOR_SIZE + MAX_PATH_LEN);
+	return buf;
 }

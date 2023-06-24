@@ -108,5 +108,8 @@ extern int32_t path_depth_count(char *pathname);
 
 extern int32_t sys_open(const char *pathname, uint8_t flag);
 extern int32_t sys_mkdir(const char *pathname);
+extern dir_t *sys_opendir(const char *name);
+extern int32_t sys_closedir(dir_t *dir);
+extern char *sys_getcwd(char *buf, uint32_t size);
 
 #endif

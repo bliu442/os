@@ -75,6 +75,7 @@ typedef struct task {
 	memory_pool_t user_virtual_pool; //进程虚拟地址管理
 	bucket_dir_t user_bucket_dir[10];
 	int32_t fd_table[MAX_FILES_OPEN_PRE_PROCESS]; //文件描述符数组
+	uint32_t cwd_inode_no; //进程工作目录inode编号
 	char name[32];
 	uint32_t magic; //魔数 用于判断堆栈溢出
 }task_t;

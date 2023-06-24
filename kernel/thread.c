@@ -11,6 +11,7 @@
 #include "../include/kernel/print.h"
 #include "../include/kernel/sched.h"
 #include "../include/unistd.h"
+#include "../include/kernel/fs.h"
 
 task_union_t *main_thread;
 task_union_t *idle_thread;
@@ -117,6 +118,9 @@ void thread_init(task_union_t *pthread, char *name, uint32_t priority) {
 	for(uint32_t fd_index = 3;fd_index < MAX_FILES_OPEN_PRE_PROCESS;++fd_index)
 		pthread->task.fd_table[fd_index] = -1;
 	pthread->task.magic = 0x000055aa;
+
+	if(strcmp(name, "main") != 0 && strcmp(name, "idle") != 0) // main线程创建根目录后其余线程才能使用 idle不需要
+		pthread->task.cwd_inode_no = current_part->sb->root_inode_no;
 }
 
 /*

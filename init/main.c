@@ -42,23 +42,22 @@ void _start(void) {
 
 	shell_init();
 
-	thread_start("shell", 31, shell, NULL);
-	process_start(u_process_a, "u_process_a");
-
 	STI
 	out_byte(PIC_M_DATA, 0b11111000); //打开0时钟中断 1键盘中断 2号级联
 	out_byte(PIC_S_DATA, 0b00111111); //打开两个硬盘中断 14 15
 
 	hd_init();
 	file_system_init();
+	open_root_dir(current_part);
 
-	file_create(&root_dir, "file1", O_CREAT);
-	file_create(&root_dir, "file2", O_CREAT);
-	file_create(&root_dir, "file3", O_CREAT);
 
-	sys_open("/file3", O_CREAT);
-	sys_open("/file4", O_CREAT);
+	sys_open("/file1", O_CREAT);
+	sys_open("/file2", O_CREAT);
 	sys_mkdir("/dir1");
+	sys_mkdir("/dir2");
+
+	thread_start("shell", 31, shell, NULL);
+	process_start(u_process_a, "u_process_a");
 
 	printk("main pid : %#x\r", sys_get_pid());
 	while(1);

@@ -1,16 +1,23 @@
 #include "../include/kernel/shell.h"
 #include "../include/kernel/ioqueue.h"
 #include "../include/string.h"
+#include "../include/kernel/buildin_cmd.h"
+#include "../include/kernel/fs.h"
 
+#define DEBUG_LEVEL 2
 #include "../include/kernel/debug.h"
 
 extern ioqueue_t keyboard_buf;
 
 static char cmd_line[cmd_size];
+int32_t argc = -1;
+char *argv[MAX_ARG_NUMBER];
+
+char cwd[MAX_PATH_LEN];
 
 static void print_prompt(void) {
 	printk("liuben@shell:", COLOR_BLUE);
-	printk("pwd", COLOR_WATHET);
+	printk("%s", COLOR_WATHET, cwd);
 	printk("$ ");
 }
 
@@ -34,27 +41,76 @@ static void read_cmd(char *buf, int32_t count) {
 				if(cmd_line[0] != '\b')
 					--pos;
 				break;
+
+			default:
+				pos++; //其余字符添加进cmd_line
 		}
 
-		pos++; //其余字符添加进cmd_line
 	}
 }
 
-static cmd_execute(uint8_t *buf) {
-	if(!strcmp("ls", buf)) {
-		buildin_ls();
+/*
+ @brief 解析命令字符串
+ @param cmd_str 命令字符串
+ @param argv 参数指针数组
+ @param token 分割符
+ @retval 参数数量
+ */
+static int32_t cmd_parse(char *cmd_str, char **argv, char token) {
+	int32_t arg_index = 0;
+	while(arg_index < MAX_ARG_NUMBER) {
+		argv[arg_index] = NULL;
+		arg_index++;
+	}
+
+	char *next = cmd_str;
+	int32_t argc = 0;
+	while(*next) { // 遍历字符串
+		while(*next == token) // 跳过分隔符,找到一个非分隔符的字符 命令
+			next++;
+
+		if(*next == '\0')
+			break;
+		
+		argv[argc] = next;
+		while(*next && *next != token) // 命令提取
+			next++;
+		
+		if(*next) //命令分割
+			*next++ = '\0';
+		
+		if(argc > MAX_ARG_NUMBER)
+			return -1;
+		
+		argc++;
+	}
+
+	return argc;
+}
+
+static void cmd_execute(uint32_t argc, char **argv) {
+	if(!strcmp("ls", argv[0])) {
+		buildin_ls(argc, argv);
+	} else if(!strcmp("mkdir", argv[0])) {
+		buildin_mkdir(argc, argv);
 	}
 }
 
 void shell(void *arg) {
+	cwd[0] = '/';
 	while(1) {
 		print_prompt();
 		memset(cmd_line, 0, sizeof(cmd_line));
 		read_cmd(cmd_line, sizeof(cmd_line));
 	
+		if(cmd_line[0] == '\0')
+			continue;
+
 		// cmd解析
 		// PRINT_HEX(cmd_line, strlen(cmd_line));
-		// INFO("%s\r", cmd_line);
-		cmd_execute(cmd_line);
+		INFO("%s\r", cmd_line);
+		argc = -1;
+		argc = cmd_parse(cmd_line, argv, ' ');
+		cmd_execute(argc, argv);
 	}
 }

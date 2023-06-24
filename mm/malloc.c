@@ -7,6 +7,9 @@
 #include "../include/kernel/thread.h"
 #include "../include/kernel/print.h"
 
+#define TAG "malloc"
+#define DEBUG_LEVEL 2
+#include "../include/kernel/debug.h"
 
 bucket_dir_t kernel_bucket_dir[10] = { //每一个内存块都有一条链表,链表中的每个节点有一页内存,从该节点中找可供分配的内存块
 	{16, (bucket_desc_t *)0},
@@ -62,7 +65,7 @@ void* kmalloc(size_t size) {
 			break;
 	}
 	if(!bdir->size) {
-		printk("malloc called with impossibly large argument (%d)\r", size);
+		ERROR("malloc called with impossibly large argument (%d)\r", size);
 		return NULL;
 	}
 
@@ -114,7 +117,7 @@ void* kmalloc(size_t size) {
 	bdesc->freeptr = *(void **)retval; //拿到内存块首四字节的值(下一个要分配的地址)
 	bdesc->refcnt++;
 
-	printk("kmalloc addr = %#x, size = %d\r", retval, bdir->size);
+	INFO("kmalloc addr = %#x, size = %d\r", retval, bdir->size);
 	STI_FUNC
 
 	return retval;
@@ -155,7 +158,7 @@ found:
 
 	*((void **)obj) = bdesc->freeptr; //把这块内存首四字节地址写bdesc->freeptr
 	bdesc->freeptr = obj; //下次申请先把这块内存分配出去
-	printk("kfree addr = %#x, size = %d\r", obj, bdir->size);
+	INFO("kfree addr = %#x, size = %d\r", obj, bdir->size);
 
 	bdesc->refcnt--;
 	if(bdesc->refcnt == 0) { //计数为0,这块内存页没有被使用的内存,可以释放
