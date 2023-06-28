@@ -124,6 +124,36 @@ void buildin_ls(uint32_t argc, char **argv) {
 	sys_closedir(dir);
 }
 
+int32_t buildin_touch(uint32_t argc, char **argv) {
+	int32_t ret = -1;
+	if(argc != 2) {
+		ERROR("touch only support 1 argument\r");
+	} else {
+		make_clear_abs_path(argv[1], final_path);
+		if(strcmp("/", final_path)) {
+			if(sys_open(final_path, O_CREAT) == 0)
+				ret = 0;
+			else
+				printk("touch : touch %s failed\r", final_path);
+		}
+	}
+}
+
+int32_t buildin_rm(uint32_t argc, char **argv) {
+	int32_t ret = -1;
+	if(argc != 2) {
+		ERROR("rm only support 1 argument\r");
+	} else {
+		make_clear_abs_path(argv[1], final_path);
+		if(strcmp("/", final_path)) {
+			if(sys_unlink(final_path) == 0)
+				ret = 0;
+			else
+				printk("rm : remove %s failed\r", final_path);
+		}
+	}
+}
+
 int32_t buildin_mkdir(uint32_t argc, char **argv) {
 	int32_t ret = -1;
 	if(argc != 2) {
@@ -143,4 +173,52 @@ int32_t buildin_mkdir(uint32_t argc, char **argv) {
 	}
 
 	return ret;
+}
+
+int32_t bildin_rmdir(uint32_t argc, char **argv) {
+	int32_t ret = -1;
+	if(argc != 2) {
+		ERROR("rmdir only support 1 argument\r");
+	} else {
+		make_clear_abs_path(argv[1], final_path);
+		if(strcmp("/", final_path)) {
+			if(sys_rmdir(final_path) == 0)
+				ret = 0;
+			else
+				printk("rmdir : remove %s failed\r", final_path);
+		}
+	}
+
+	return ret;
+}
+
+char *buildin_cd(uint32_t argc, char **argv) {
+	if(argc > 2) {
+		ERROR("only support 1 argument\r");
+		return NULL;
+	}
+
+	if(argc == 1)
+		strcpy(final_path, "/");
+	else
+		make_clear_abs_path(argv[1], final_path);
+	
+	if(sys_chdir(final_path) == -1) {
+		ERROR("no such directory\r");
+		return NULL;
+	}
+	return final_path;
+}
+
+void buildin_pwd(uint32_t argc, char **argv) {
+	if(argc != 1) {
+		ERROR("no argument support\r");
+		return;
+	} else {
+		if(NULL != sys_getcwd(final_path, MAX_PATH_LEN)) {
+			printk("%s\r", final_path);
+		} else {
+			ERROR("get current work directory faild\r");
+		}
+	}
 }

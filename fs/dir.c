@@ -30,8 +30,8 @@ void dir_entry_create(char *filename, uint32_t inode_no, file_type_t file_type, 
  @retal false:写入失败 true:成功
  */
 bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
-	inode_t *dir_inode = parent_dir->inode;
-	uint32_t dir_size = dir_inode->i_size;
+	inode_t *parent_dir_inode = parent_dir->inode;
+	uint32_t dir_size = parent_dir_inode->i_size;
 	uint32_t dir_entry_size = current_part->sb->dir_entry_size;
 	uint32_t dir_entrys_per_sector = SECTOR_SIZE / dir_entry_size;
 	
@@ -40,11 +40,11 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 	uint32_t all_block[140] = {0};
 
 	while(block_index < 12) { // 拿到已有块
-		all_block[block_index] = dir_inode->i_zone[block_index];
+		all_block[block_index] = parent_dir_inode->i_zone[block_index];
 		block_index++;
 	}
-	if(dir_inode->i_zone[block_index] != 0)
-		hd_read(current_part->disk, dir_inode->i_zone[block_index], 1, &all_block[block_index]);
+	if(parent_dir_inode->i_zone[block_index] != 0)
+		hd_read(current_part->disk, parent_dir_inode->i_zone[block_index], 1, &all_block[block_index]);
 
 	dir_entry_t *dir_entry = (dir_entry_t *)buf;
 	int32_t block_bitmap_index = -1;
@@ -64,16 +64,16 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 
 			block_bitmap_index = -1;
 			if(block_index < 12) { // 直接块
-				dir_inode->i_zone[block_index] = all_block[block_index] = block_lba;
+				parent_dir_inode->i_zone[block_index] = all_block[block_index] = block_lba;
 			} else if(block_index == 12) { // 一级间接块
-				dir_inode->i_zone[block_index] = block_lba; // 之前申请的block当作一级间接块
+				parent_dir_inode->i_zone[block_index] = block_lba; // 之前申请的block当作一级间接块
 				
 				block_lba = -1;
 				block_lba = block_bitmap_alloc(current_part); // 再申请一块用于存储
 				if(block_lba == -1) {
-					block_bitmap_index = dir_inode->i_zone[block_index] - current_part->sb->data_start_lba;
+					block_bitmap_index = parent_dir_inode->i_zone[block_index] - current_part->sb->data_start_lba;
 					bitmap_set(&current_part->block_bitmap, block_bitmap_index, bitmap_unused);
-					dir_inode->i_zone[block_index] = 0;
+					parent_dir_inode->i_zone[block_index] = 0;
 
 					WARN("alloc block bitmap failed\r");
 					return false;
@@ -93,7 +93,7 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 			memcpy(buf, p_de, dir_entry_size);
 			hd_write(current_part->disk, all_block[block_index], 1, (uint8_t *)buf);  //写入
 
-			dir_inode->i_size += dir_entry_size;
+			parent_dir_inode->i_size += dir_entry_size;
 			return true;
 		}
 
@@ -105,7 +105,7 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 				memcpy(dir_entry + dir_entry_index, p_de, dir_entry_size);
 				hd_write(current_part->disk, all_block[block_index], 1, (uint8_t *)dir_entry);  //写入
 
-				dir_inode->i_size += dir_entry_size;
+				parent_dir_inode->i_size += dir_entry_size;
 				return true;
 			}
 			dir_entry_index++;
@@ -129,14 +129,14 @@ bool dir_entry_search(hd_partition_t *part, dir_t *parent_dir, const char *name,
 	uint32_t block_number = 12;
 	uint32_t all_block[140] = {0};
 	uint32_t block_index = 0;
-	inode_t *dir_inode = parent_dir->inode;
+	inode_t *parent_dir_inode = parent_dir->inode;
 
 	while(block_index < block_number) {
-		all_block[block_index] = dir_inode->i_zone[block_index];
+		all_block[block_index] = parent_dir_inode->i_zone[block_index];
 		block_index++;
 	}
-	if(dir_inode->i_zone[block_index] != 0) {
-		hd_read(part->disk, dir_inode->i_zone[block_index], 1, &all_block[block_index]);
+	if(parent_dir_inode->i_zone[block_index] != 0) {
+		hd_read(part->disk, parent_dir_inode->i_zone[block_index], 1, &all_block[block_index]);
 		block_number = 140;
 	}
 	block_index = 0;
@@ -178,6 +178,104 @@ bool dir_entry_search(hd_partition_t *part, dir_t *parent_dir, const char *name,
 	}
 
 	kfree(buf, SECTOR_SIZE);
+	return false;
+}
+
+/*
+ @brief 删除目录下指定文件的目录项
+ @param parent_dir 目录
+ @param inode_no 要删除文件的inode_no
+ @param buf 缓冲区
+ @retval true:成功 false:失败
+ */
+bool dir_entry_delete(hd_partition_t *part, dir_t* parent_dir, uint32_t inode_no, void *buf) {
+	inode_t *parent_dir_inode = parent_dir->inode;
+	uint32_t block_number = 12;
+	uint32_t block_index = 0;
+	uint32_t all_block[140] = {0};
+	
+	while(block_index < block_number) {
+		all_block[block_index] = parent_dir_inode->i_zone[block_index];
+		block_index++;
+	}
+	if(parent_dir_inode->i_zone[block_index] != 0) {
+		hd_read(part->disk, parent_dir_inode->i_zone[block_index], 1, &all_block[block_index]);
+		block_number = 140;
+	}
+	block_index = 0;
+
+	dir_entry_t *p_de = (dir_entry_t *)buf;
+	uint32_t dir_entry_size = part->sb->dir_entry_size;
+	uint32_t dir_entrys_per_sector = SECTOR_SIZE / dir_entry_size;
+	uint32_t dir_entry_index, dir_entry_count;
+	bool is_dir_first_block = false;
+	dir_entry_t *dir_entry_found = NULL;
+
+	while(block_index < block_number) {
+		is_dir_first_block = false;
+		if(all_block[block_index] == 0) {
+			block_index++;
+			continue;
+		}
+		
+		dir_entry_index = dir_entry_count = 0;
+		memset(buf, 0, SECTOR_SIZE);
+		hd_read(part->disk, all_block[block_index], 1, buf);
+		while(dir_entry_index < dir_entrys_per_sector) {
+			if((p_de + dir_entry_index)->f_type != FILE_NULL) {
+				if(!strcmp((p_de + dir_entry_index)->filename, "."))
+					is_dir_first_block = true;
+				else if(strcmp((p_de + dir_entry_index)->filename, ".") && strcmp((p_de + dir_entry_index)->filename, ".")) {
+					dir_entry_count++; // 统计目录项个数,用于释放block
+					if((p_de + dir_entry_index)->inode_no == inode_no)
+						dir_entry_found = p_de + dir_entry_index; // 找到了
+				}
+			}
+			dir_entry_index++;
+		}
+
+		if(dir_entry_found == NULL) {
+			block_index++;
+			continue; // 继续找
+		}
+
+		if(dir_entry_count == 1 && !is_dir_first_block) { // 回收block
+			uint32_t block_bitmap_index = all_block[block_index] - part->sb->data_start_lba;
+			bitmap_set(&part->block_bitmap, block_bitmap_index, bitmap_unused);
+			bitmap_sync(part, block_bitmap_index, BITMAP_BLOCK);
+
+			if(block_index < 12)
+				parent_dir_inode->i_zone[block_index] = 0;
+			else { //一级间接块
+				uint32_t indirect_block = 0;
+				uint32_t indirect_block_index = 12;
+				while(indirect_block_index < block_number) {
+					if(all_block[indirect_block_index] != 0)
+						indirect_block++;
+				}
+
+				if(indirect_block > 1) {
+					all_block[block_index] = 0;
+					hd_write(part->disk, parent_dir_inode->i_zone[block_index], 1, (uint8_t *)(all_block + 12));
+				} else {
+					block_bitmap_index = parent_dir_inode->i_zone[12] - part->sb->data_start_lba;
+					bitmap_set(&part->block_bitmap, block_bitmap_index, bitmap_unused);
+					bitmap_sync(part, block_bitmap_index, BITMAP_BLOCK);
+					parent_dir_inode->i_zone[12] = 0;
+				}
+			}
+		} else { // 只清除这一项dir_entry
+			memset(dir_entry_found, 0, dir_entry_size);
+			hd_write(part->disk, all_block[block_index], 1, buf);
+		}
+
+		parent_dir_inode->i_size -= dir_entry_size;
+		memset(buf, 0, SECTOR_SIZE * 2);
+		inode_sync(part, parent_dir_inode, buf);
+
+		return true;
+	}
+
 	return false;
 }
 
@@ -299,6 +397,11 @@ void dir_rewinddir(dir_t *dir) {
 	dir->dir_pos = 0;
 }
 
+bool dir_is_empty(dir_t *dir) {
+	inode_t *dir_inode = dir->inode;
+	return (dir_inode->i_size == current_part->sb->dir_entry_size * 2);
+}
+
 /*
  @brief 读取目录项
  @param dir 需要读取的目录
@@ -358,6 +461,37 @@ dir_entry_t *dir_read(dir_t *dir) {
 	return NULL;
 }
 
+/*
+ @brief 删除指定目录下的子目录
+ @param parent_dir 指定目录
+ @param child_dir 要删除的子目录
+ @retval 0:成功 -1:失败
+ */
+uint32_t dir_remove(dir_t *parent_dir, dir_t * child_dir) {
+	inode_t *child_dir_inode = child_dir->inode;
+	int32_t block_index = 1;
+	while(block_index < 13) {
+		if(child_dir_inode->i_zone[block_index] != 0) {
+			ERROR("dir is not empty\r");
+			return -1;
+		}
+		block_index++;
+	}
+
+	void *buf = kmalloc(SECTOR_SIZE * 2);
+	if(buf == NULL) {
+		WARN("kmalloc");
+		return -1;
+	}
+
+	dir_entry_delete(current_part, parent_dir, child_dir_inode->i_no, buf);
+
+	inode_release(current_part, child_dir_inode->i_no);
+
+	kfree(buf, SECTOR_SIZE * 2);
+	return 0;
+}
+
 dir_t *dir_open(hd_partition_t *part, uint32_t inode_no) {
 	dir_t *dir = kmalloc(sizeof(dir_t));
 	if(dir == NULL) {
@@ -377,4 +511,3 @@ void dir_close(dir_t *dir) {
 	inode_close(dir->inode);
 	kfree(dir, sizeof(dir_t));
 }
-

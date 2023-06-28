@@ -12,6 +12,23 @@ typedef struct inode_position {
 	uint32_t offset; //扇区内偏移
 }inode_position_t;
 
+
+/*
+ @brief 初始化inode
+ @param inode_no inode索引
+ @param new_inode inode地址
+ */
+void inode_init(uint32_t inode_no, inode_t *new_inode) {
+	new_inode->i_no = inode_no;
+	new_inode->i_mode = 0;
+	new_inode->i_size = 0;
+	new_inode->i_time = 0;
+	new_inode->i_open_counts = 0;
+	new_inode->i_write_deny = false;
+	
+	memset(new_inode->i_zone, 0, sizeof(new_inode->i_zone));
+}
+
 /*
  @brief 获取inode在硬盘中的位置
  @param inode_no 想要获取的inode inode_no
@@ -57,6 +74,52 @@ void inode_sync(hd_partition_t *part, inode_t *inode, void *buf) {
 	hd_read(part->disk, inode_pos.sector_lba, count, inode_buf);
 	memcpy((inode_buf + inode_pos.offset), &pure_inode, sizeof(inode_t));
 	hd_write(part->disk, inode_pos.sector_lba, count, inode_buf);
+}
+
+/*
+ @brief 释放指定inode号对应的inode结构和相关的数据块
+ @param inode_no 要释放的节点号
+ @note
+ 1.block位图回收
+ 2.inode位图回收
+ 只同步位图,实际数据并未删除,新数据覆盖
+ */
+void inode_release(hd_partition_t *part, uint32_t inode_no) {
+	inode_t *delete_inode = inode_open(part, inode_no);
+
+	uint8_t block_index = 0;
+	uint8_t block_number = 12;
+	uint32_t all_block[140] = {0};
+	uint32_t block_bitmap_index = 0;
+
+	while(block_index < block_number) {
+		all_block[block_index] = delete_inode->i_zone[block_index];
+		block_index++;
+	}
+	if(delete_inode->i_zone[block_index] != 0) {
+		hd_read(part, delete_inode->i_zone[block_index], 1, &all_block[block_index]);
+		block_number = 140;
+		
+		block_bitmap_index = delete_inode->i_zone[block_index] - part->sb->data_start_lba;
+		bitmap_set(&part->block_bitmap, block_bitmap_index, bitmap_unused);
+		bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+	}
+
+	block_index = 0;
+	while(block_index < block_number) {
+		if(all_block[block_index] != 0) {
+			block_bitmap_index = all_block[block_index] - part->sb->data_start_lba;
+			bitmap_set(&part->block_bitmap, block_bitmap_index, bitmap_unused);
+			bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+		}
+
+		block_index++;
+	}
+
+	bitmap_set(&part->inode_bitmap, inode_no, bitmap_unused);
+	bitmap_sync(part, inode_no, BITMAP_INODE);
+
+	inode_close(delete_inode);
 }
 
 /*
@@ -124,22 +187,5 @@ void inode_close(inode_t *inode) {
 
 	STI_FUNC
 }
-
-/*
- @brief 初始化inode
- @param inode_no inode索引
- @param new_inode inode地址
- */
-void inode_init(uint32_t inode_no, inode_t *new_inode) {
-	new_inode->i_no = inode_no;
-	new_inode->i_mode = 0;
-	new_inode->i_size = 0;
-	new_inode->i_time = 0;
-	new_inode->i_open_counts = 0;
-	new_inode->i_write_deny = false;
-	
-	memset(new_inode->i_zone, 0, sizeof(new_inode->i_zone));
-}
-
 
 

@@ -93,6 +93,19 @@ static void cmd_execute(uint32_t argc, char **argv) {
 		buildin_ls(argc, argv);
 	} else if(!strcmp("mkdir", argv[0])) {
 		buildin_mkdir(argc, argv);
+	} else if(!strcmp("cd", argv[0])) {
+		if(buildin_cd(argc, argv) != NULL) {
+			memset(cwd, 0, MAX_PATH_LEN);
+			strcpy(cwd, final_path);
+		}
+	} else if(!strcmp("pwd", argv[0])) {
+		buildin_pwd(argc, argv);
+	} else if(!strcmp("rmdir", argv[0])) {
+		bildin_rmdir(argc, argv);
+	} else if(!strcmp("rm", argv[0])) {
+		buildin_rm(argc, argv);
+	} else if(!strcmp("touch", argv[0])) {
+		buildin_touch(argc, argv);
 	}
 }
 

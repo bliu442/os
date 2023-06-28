@@ -200,7 +200,7 @@ void file_system_init(void) {
 
 				hd_read_sector(hd, part->sector_start + 1, 1, sb);
 
-				// super_block_init(part);
+				// super_block_init(part); // 重置硬盘
 
 				if(sb->magic == FS_EXT) {
 					INFO("%s has filesystem\r", part->name);
@@ -425,6 +425,60 @@ error_return:
 }
 
 /*
+ @brief 删除指定文件
+ @param pathname 文件路径
+ @retval 0:成功 1:失败
+ 1.查询该文件是否存在
+ 2.查询该文件是否被打开
+ 3.父目录删除该文件的dir_entry
+ 4.回收该文件block,inode占用的扇区
+ */
+int32_t sys_unlink(const char *pathname) {
+	ASSERT(strlen(pathname) < MAX_PATH_LEN);
+
+	path_search_record_t search_record = {0};
+	int inode_no = search_file(pathname, &search_record);
+	if(inode_no == -1) {
+		ERROR("file %s not found\r", pathname);
+		dir_close(search_record.parent_dir);
+		return -1;
+	}
+
+	if(search_record.file_type == FILE_DIRECTORY) {
+		ERROR("can't delete a directory with unlink, use rmdir to insted\r");
+		dir_close(search_record.parent_dir);
+		return -1;
+	}
+
+	uint32_t file_index = 0;
+	while(file_index < MAX_FILE_OPEN) {
+		if(file_table[file_index].fd_inode != NULL && inode_no == file_table[file_index].fd_inode->i_no)
+			break; //查询该文件是否被使用
+		file_index++;
+	}
+
+	if(file_index < MAX_FILE_OPEN) {
+		dir_close(search_record.parent_dir);
+		ERROR("file %s is in use, not allow to delete\r", pathname);
+		return -1;
+	}
+
+	void *buf = kmalloc(SECTOR_SIZE * 2);
+	if(buf == NULL) {
+		WARN("kmalloc\r");
+		return -1;
+	}
+	
+	dir_t *parent_dir = search_record.parent_dir;
+	dir_entry_delete(current_part, parent_dir, inode_no, buf);
+	inode_release(current_part, inode_no);
+
+	kfree(buf, SECTOR_SIZE * 2);
+	dir_close(search_record.parent_dir);
+	return 0;
+}
+
+/*
  @brief 创建新目录
  @retval 0:成功 -1:失败
  @note 写了四次硬盘
@@ -490,7 +544,7 @@ int32_t sys_mkdir(const char *pathname) {
 
 	dir_entry_t *p_de = (dir_entry_t *)buf;
 	dir_entry_create(".", inode_no, FILE_DIRECTORY, p_de);
-	dir_entry_create("..", inode_no, FILE_DIRECTORY, p_de + 1);
+	dir_entry_create("..", parent_dir->inode->i_no, FILE_DIRECTORY, p_de + 1);
 	hd_write(current_part->disk, new_dir_inode.i_zone[0], 1, (uint8_t *)p_de);
 	new_dir_inode.i_size = current_part->sb->dir_entry_size * 2;
 
@@ -528,6 +582,29 @@ rollback:
 
 	kfree(buf, SECTOR_SIZE * 2);
 	return -1;
+}
+
+int32_t sys_rmdir(const char *pathname) {
+	path_search_record_t search_record = {0};
+	uint32_t inode_no = search_file(pathname, &search_record);
+	uint32_t ret = -1;
+	if(inode_no == -1) {
+		ERROR("in %s, sub path %s not exist\r", pathname, search_record.searched_path);
+	} else if(search_record.file_type == FILE_REGULAR) {
+		ERROR("%s is regular file\r");
+	} else {
+		dir_t *dir = dir_open(current_part, inode_no);
+		if(!dir_is_empty(dir)) {
+			ERROR("dir %s is not empty, it is not allowed to delete a nonempty directory\r", pathname);
+		} else {
+			if(!dir_remove(search_record.parent_dir, dir))
+				ret = 0;
+		}
+		dir_close(dir);
+	}
+
+	dir_close(search_record.parent_dir);
+	return ret;
 }
 
 /*
@@ -607,4 +684,25 @@ char *sys_getcwd(char *buf, uint32_t size) {
 
 	kfree(io_buf, SECTOR_SIZE + MAX_PATH_LEN);
 	return buf;
+}
+
+/*
+ @brief 改变当e工作目录
+ @param path 目录的绝对地址
+ @retval 0:成功 -1:失败
+ */
+int32_t sys_chdir(const char *path) {
+	int32_t ret = -1;
+	path_search_record_t search_record = {0};
+	int32_t inode_no = search_file(path, &search_record);
+	if(inode_no != -1) {
+		if(search_record.file_type == FILE_DIRECTORY) {
+			running_thread()->cwd_inode_no = inode_no;
+			ret = 0;
+		} else {
+			ERROR("%s is regular file\r");
+		}
+	}
+	dir_close(search_record.parent_dir);
+	return ret;
 }
