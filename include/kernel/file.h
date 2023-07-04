@@ -12,11 +12,14 @@ typedef struct dir dir_t;
 typedef struct file {
 	uint32_t fd_pos;
 	uint32_t fd_flag;
-	inode_t * fd_inode;
+	inode_t *fd_inode;
 }file_t;
 extern file_t file_table[MAX_FILE_OPEN];
 
-extern int32_t file_create(dir_t *parent_dir, char *filename, uint8_t flag);
+extern uint32_t fd_local2global(uint32_t local_fd);
+extern int32_t file_create(dir_t *parent_dir, char *filename);
 extern int32_t file_open(uint32_t inode_no, uint8_t flag);
+extern int32_t file_close(file_t *file);
+extern int32_t file_write(file_t *file, const void *buf, uint32_t count);
 
 #endif

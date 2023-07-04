@@ -11,6 +11,7 @@
 #include "../include/kernel/print.h"
 #include "../include/kernel/sched.h"
 #include "../include/unistd.h"
+#include "../include/kernel/hd.h"
 #include "../include/kernel/fs.h"
 
 task_union_t *main_thread;

@@ -10,6 +10,8 @@
 #include "../include/string.h"
 #include "../include/kernel/inode.h"
 #include "../include/asm/system.h"
+#include "../include/kernel/hd.h"
+#include "../include/kernel/fs.h"
 
 #define TAG "file"
 #define DEBUG_LEVEL 4
@@ -17,6 +19,11 @@
 
 file_t file_table[MAX_FILE_OPEN]; // 文件表
 
+uint32_t fd_local2global(uint32_t local_fd) {
+	task_t *current = running_thread();
+	uint32_t global_fd = current->fd_table[local_fd];
+	return global_fd;
+}
 /*
  @brief 在文件表中找到空闲
  @retval 文件表数组下标
@@ -66,81 +73,58 @@ int32_t pcb_fd_install(int32_t global_fd_index) {
  @brief 在父目录下新建文件
  @param parent_dir 父目录
  @param filename 文件名
- @param flag
- @retval 文件描述符 -1:出错
+ @retval 成功:inode_no -1:出错
  @note 写了两次硬盘
  1.父目录inode节点更新
  2.新目录inode节点写入
  */
-int32_t file_create(dir_t *parent_dir, char *filename, uint8_t flag) {
+int32_t file_create(dir_t *parent_dir, char *filename) {
 	void *buf = kmalloc(1024);
 	if(buf == NULL) {
 		WARN("kmalloc\r");
 		return -1;
 	}
 
-	uint8_t roolback_step = 0;
+	uint8_t rollback_step = 0;
 
 	int32_t inode_no = inode_bitmap_alloc(current_part);
 	if(inode_no == -1) {
 		WARN("allocate inode failed\r");
-		return -1;
+		rollback_step = 1;
 	}
 
-	inode_t *new_inode = (inode_t *)kmalloc(sizeof(inode_t));
-	if(new_inode == NULL) {
-		WARN("kmalloc\r");
-		roolback_step = 1;
-		goto roolback;
-	}
-	inode_init(inode_no, new_inode);
-
-	int fd_index = get_free_slot_in_file_table();
-	if(fd_index == -1) {
-		WARN("execed max open file\r");
-		roolback_step = 2;
-		goto roolback;
-	}
-
-	file_table[fd_index].fd_pos = 0;
-	file_table[fd_index].fd_flag = flag;
-	file_table[fd_index].fd_inode = new_inode;
+	inode_t new_inode = {0};
+	inode_init(inode_no, &new_inode);
 
 	dir_entry_t new_dir_entry = {0};
 	dir_entry_create(filename, inode_no, FILE_REGULAR, &new_dir_entry);
 
 	if(!dir_entry_sync(parent_dir, &new_dir_entry, buf)) {
 		WARN("sync dir entry to disk failed\r");
-		roolback_step = 3;
-		goto roolback;
+		rollback_step = 2;
+		goto rollback;
 	}
 
 	memset(buf, 0, 1024);
 	inode_sync(current_part, parent_dir->inode, buf);
 
 	memset(buf, 0, 1024);
-	inode_sync(current_part, new_inode, buf);
+	inode_sync(current_part, &new_inode, buf);
 
 	bitmap_sync(current_part, inode_no, BITMAP_INODE);
 
-	list_push(&current_part->open_inodes, &new_inode->i_list_item);
-	new_inode->i_open_counts = 1;
-
 	kfree(buf, 1024);
-	return pcb_fd_install(fd_index);
+	return inode_no;
 
-roolback:
-	switch(roolback_step) {
-		case 3:
-			memset(&file_table[fd_index], 0, sizeof(file_t));
+rollback:
+	switch(rollback_step) {
 		case 2:
-			kfree(new_inode, sizeof(inode_t));
-		case 1:
 			bitmap_set(&current_part, inode_no, bitmap_unused);
+		case 1:
+			kfree(buf, 1024);
 			break;
 	}
 
-	kfree(buf, 1024);
 	return -1;
 }
 
@@ -174,4 +158,198 @@ int32_t file_open(uint32_t inode_no, uint8_t flag) {
 	}
 
 	return pcb_fd_install(fd_index);
+}
+
+int32_t file_close(file_t *file) {
+	if(file == NULL) {
+		return -1;
+	}
+
+	if(file->fd_flag == O_WRONLY || file->fd_flag == O_RDWR)
+		file->fd_inode->i_write_deny = false;
+	inode_close(file->fd_inode);
+	file->fd_inode = NULL; // 释放文件表元素
+	return 0;
+}
+
+int32_t file_write(file_t *file, const void *buf, uint32_t count) {
+	uint32_t rollback_step = 0;
+	if(file->fd_inode->i_size + count > BLOCK_SIZE * 140) {
+		ERROR("exceed max file size %d bytes, write file failed\r", BLOCK_SIZE * 140);
+		return -1;
+	}
+	uint8_t *io_buf = kmalloc(BLOCK_SIZE);
+	if(io_buf == NULL) {
+		ERROR("kmalloc\r");
+		return -1;
+	}
+	uint32_t *all_block = kmalloc(140 * 4);
+	if(all_block == NULL) {
+		ERROR("kmalloc\r");
+		rollback_step = 1;
+		goto rollback;
+	}
+
+	const uint8_t * src = buf; // 待写入数据
+	uint32_t bytes_writeen = 0; // 统计写入多少byte
+	uint32_t size_left = count; // 统计未写入的数据
+
+	uint32_t block_index = 0;
+	uint32_t block_lba = 0;
+	uint32_t block_bitmap_index = 0;
+	uint32_t sector_lba = 0;
+	uint32_t sector_index = 0;
+	uint32_t sector_offset_bytes = 0;
+	uint32_t sector_left_bytes = 0;
+	uint32_t chunk_size = 0;
+	uint32_t indirect_block_table = 0;
+
+	if(file->fd_inode->i_zone[0] == 0) { // 第一次写
+		block_lba = block_bitmap_alloc(current_part);
+		if(block_lba == -1) {
+			ERROR("block bitmap alloc failed\r");
+			rollback_step = 2;
+			goto rollback;
+		}
+		file->fd_inode->i_zone[0] = block_lba;
+		block_bitmap_index = block_lba - current_part->sb->data_start_lba;
+		bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK); // 不需要回滚
+	}
+
+	uint32_t file_has_used_blocks = file->fd_inode->i_size ? DIV_ROUND_UP(file->fd_inode->i_size, BLOCK_SIZE) : 1;
+	uint32_t file_will_use_blocks = DIV_ROUND_UP(file->fd_inode->i_size + count, BLOCK_SIZE);
+	ASSERT(file_will_use_blocks < 140);
+
+	uint32_t add_blocks = file_will_use_blocks - file_has_used_blocks;
+	/* 将需要改动的block收集到all_block */
+	if(add_blocks == 0) {
+		if(file_has_used_blocks <= 12) {
+			block_index = file_has_used_blocks -1;
+			all_block[block_index] = file->fd_inode->i_zone[block_index];
+		} else {
+			indirect_block_table = file->fd_inode->i_zone[12];
+			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
+		}
+	} else { // 需要分配block
+		if(file_will_use_blocks <= 12) {
+			block_index = file_has_used_blocks -1;
+			all_block[block_index] = file->fd_inode->i_zone[block_index];
+
+			block_index = file_has_used_blocks;
+			while(block_index < file_will_use_blocks) {
+				ASSERT(file->fd_inode->i_zone[block_index] == 0);
+
+				block_lba = block_bitmap_alloc(current_part);
+				if(block_lba == -1) {
+					ERROR("block bitmap alloc failed\r");
+					rollback_step = 3;
+					goto rollback;
+				}
+				file->fd_inode->i_zone[block_index] = block_lba;
+				block_bitmap_index = block_lba - current_part->sb->data_start_lba;
+				bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+				block_index++;
+			}
+		} else if(file_has_used_blocks <= 12) { // 需要分配一级间接表
+			ASSERT(file->fd_inode->i_zone[12] == 0);
+			block_lba = block_bitmap_alloc(current_part);
+			if(block_lba == -1) {
+				ERROR("block bitmap alloc failed\r");
+				rollback_step = 2;
+				goto rollback;
+			}
+			file->fd_inode->i_zone[12] = block_lba;
+			block_bitmap_index = block_lba - current_part->sb->data_start_lba;
+			bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+
+			block_index = file_has_used_blocks - 1;
+			all_block[block_index] = file->fd_inode->i_zone[block_index];
+
+			block_index = file_has_used_blocks;
+			while(block_index < file_will_use_blocks) {
+				ASSERT(file->fd_inode->i_zone[block_index] == 0);
+
+				block_lba = block_bitmap_alloc(current_part);
+				if(block_lba == -1) {
+					ERROR("block bitmap alloc failed\r");
+					rollback_step = 3;
+					goto rollback;
+				}
+
+				if(block_index < 12) {
+					file->fd_inode->i_zone[block_index] = all_block[block_index] = block_lba;
+				} else {
+					all_block[block_index] = block_lba;
+				}
+
+				block_bitmap_index = block_lba - current_part->sb->data_start_lba;
+				bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+				block_index++;
+			}
+		} else {
+			ASSERT(file->fd_inode->i_zone[12] != 0);
+
+			indirect_block_table = file->fd_inode->i_zone[12];
+			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
+
+			block_index = file_has_used_blocks;
+			while(block_index < file_will_use_blocks) {
+				ASSERT(all_block[block_index] == 0);
+
+				block_lba = block_bitmap_alloc(current_part);
+				if(block_lba == -1) {
+					ERROR("block bitmap alloc failed\r");
+					rollback_step = 3;
+					goto rollback;
+				}
+				all_block[block_index] = block_lba;
+				block_bitmap_index = block_lba - current_part->sb->data_start_lba;
+				bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
+				block_index++;
+			}
+			hd_write(current_part->disk, indirect_block_table, 1, all_block + 12);
+		}
+	}
+
+	bool first_write_block = true;
+	file->fd_pos = file->fd_inode->i_size -1;
+	while(bytes_writeen < count) {
+		memset(io_buf, 0, BLOCK_SIZE);
+		sector_index = file->fd_inode->i_size / BLOCK_SIZE;
+		sector_lba = all_block[sector_index];
+		sector_offset_bytes = file->fd_inode->i_size % BLOCK_SIZE;
+		sector_left_bytes = BLOCK_SIZE - sector_offset_bytes;
+
+		chunk_size = size_left < sector_left_bytes ? size_left : sector_left_bytes;
+		if(first_write_block) {
+			hd_read(current_part->disk, sector_lba, 1, io_buf);
+			first_write_block = false;
+		}
+
+		memcpy(io_buf + sector_offset_bytes, src, chunk_size);
+		hd_write(current_part->disk, sector_lba, 1, io_buf);
+
+		src += chunk_size;
+		bytes_writeen += chunk_size;
+		size_left -= chunk_size;
+		file->fd_inode->i_size += chunk_size;
+		file->fd_pos += chunk_size;
+	}
+
+	inode_sync(current_part, file->fd_inode, io_buf);
+
+	kfree(io_buf, BLOCK_SIZE);
+	kfree(all_block, 140 * 4);
+	return bytes_writeen;
+
+rollback:
+	switch(rollback_step) {
+		case 3:
+			// 分配block过程中出现错误,将已经分配了的block回收
+		case 2:
+			kfree(all_block, 140 * 4);
+		case 1:
+			kfree(io_buf, BLOCK_SIZE);
+			return -1;
+	}
 }

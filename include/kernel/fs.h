@@ -12,7 +12,6 @@
 
 #include "../stdint.h"
 #include "./list.h"
-#include "./hd.h"
 
 #define MAX_FILE_NAME_LEN 16
 #define MAX_PATH_LEN 512
@@ -22,6 +21,7 @@
 #define BITS_PER_SECTOR (SECTOR_SIZE * 8)
 #define BLOCK_SIZE SECTOR_SIZE
 
+typedef struct hd_partition hd_partition_t;
 extern hd_partition_t *current_part;
 
 typedef struct dir dir_t;
@@ -94,7 +94,7 @@ typedef struct dir_entry {
 typedef struct path_search_record {
 	char searched_path[MAX_PATH_LEN]; // 记录已经找的路径 
 	dir_t *parent_dir; // 已经找的路径的父目录(已经打开)
-	file_type_t file_type; // 是否找到 FILE_NULL没找到 FILE_REGULAR找到文件 FILE_DIRECTORY找到目录
+	file_type_t file_type;
 }path_search_record_t;
 
 extern void file_system_init(void);
@@ -107,7 +107,9 @@ extern char *path_parse(char *pathname, char *name_store);
 extern int32_t path_depth_count(char *pathname);
 
 extern int32_t sys_open(const char *pathname, uint8_t flag);
+extern int32_t sys_close(int32_t fd);
 extern int32_t sys_unlink(const char *pathname);
+extern ssize_t sys_write(int fd, const void *buf, size_t count);
 
 extern int32_t sys_mkdir(const char *pathname);
 extern int32_t sys_rmdir(const char *pathname);

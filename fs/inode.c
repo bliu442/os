@@ -1,6 +1,13 @@
+/*
+ 所有打开的节点内存都使用的是内核空间的内存,以便所有进程都能直接访问文件
+ 打开的节点使用链表维护
+ */
+
 #include "../include/kernel/inode.h"
 #include "../include/kernel/thread.h"
 #include "../include/asm/system.h"
+#include "../include/kernel/hd.h"
+#include "../include/kernel/fs.h"
 
 #define TAG "inode"
 #define DEBUG_LEVEL 4
@@ -11,7 +18,6 @@ typedef struct inode_position {
 	uint32_t sector_lba; //起始扇区地址
 	uint32_t offset; //扇区内偏移
 }inode_position_t;
-
 
 /*
  @brief 初始化inode
@@ -125,6 +131,7 @@ void inode_release(hd_partition_t *part, uint32_t inode_no) {
 /*
  @brief 打开一个指定的inode节点,以便进行后续的文件操作
  @retval inode节点的指针
+ @note 申请内存存放inode,并将inode加入链表 内存使用内核空间内存,所有进程都能访问
  */
 inode_t *inode_open(hd_partition_t *part, uint32_t inode_no) {
 	list_item_t *item = part->open_inodes.head.next;
@@ -171,7 +178,10 @@ inode_t *inode_open(hd_partition_t *part, uint32_t inode_no) {
 	return inode_found;
 }
 
-/* 关闭相应的inode */
+/*
+ @brief 关闭相应的inode
+ @note 释放内存,清除链表中的节点
+ */
 void inode_close(inode_t *inode) {
 	CLI_FUNC
 

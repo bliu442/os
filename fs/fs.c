@@ -5,11 +5,16 @@
 #include "../include/kernel/file.h"
 #include "../include/kernel/inode.h"
 #include "../include/kernel/thread.h"
+#include "../include/kernel/hd.h"
 
 #define TAG "fs"
 #include "../include/kernel/debug.h"
 
 #define MAX_FILE_NUMBER 4096
+
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
 
 hd_partition_t *current_part;
 
@@ -273,7 +278,7 @@ void bitmap_sync(hd_partition_t *part, uint32_t index, bitmap_type_t type) {
 /*
  @brief 从文件路径中提取最上层文件名并返回剩余路径
  @param pathname 文件路径名
- @param name_store 存储文件名的字符指针
+ @param name_store 存储最上层文件名的字符指针
  @retval 剩余路径
  */
 char *path_parse(char *pathname, char *name_store) {
@@ -316,6 +321,10 @@ int32_t path_depth_count(char *pathname) {
  @brief 查找指定路径的文件或目录
  @param pathname 路径名
  @param searched_record 记录文件搜索的过程和结果
+ @retval -1:找不到
+ @note searched_record记录已搜索的路径
+ 1.不能根据searched_record.file_type判断是否找到文件,根据查找前后路径深度判断
+ 2.searched_record.parent_dir已经打开,上层函数使用完应该关闭
  */
 int search_file(const char *pathname, path_search_record_t *searched_record) {
 	if(!strcmp(pathname, "/") || !strcmp(pathname, "/.") || !strcmp(pathname, "/..")) { // 跳过根目录
@@ -334,7 +343,7 @@ int search_file(const char *pathname, path_search_record_t *searched_record) {
 	char name[MAX_FILE_NAME_LEN] = {0};
 
 	searched_record->parent_dir = parent_dir;
-	searched_record->file_type = FILE_NULL;
+	searched_record->file_type = FILE_DIRECTORY;
 	uint32_t parent_inode_no = current_part->sb->root_inode_no; // 备份已经解析的路径的父目录
 
 	sub_path = path_parse(sub_path, name); // 逐级解析路径,name提取的文件名 sub_path:剩余路径
@@ -345,17 +354,17 @@ int search_file(const char *pathname, path_search_record_t *searched_record) {
 		strcat(searched_record->searched_path, name);
 
 		if(dir_entry_search(current_part, parent_dir, name, &dir_entry)) {
-			if(FILE_DIRECTORY == dir_entry.f_type) {
+			if(FILE_DIRECTORY == dir_entry.f_type) { // 目录,继续找
 				parent_inode_no = parent_dir->inode->i_no;
 				dir_close(parent_dir);
 				parent_dir = dir_open(current_part, dir_entry.inode_no);
 				searched_record->parent_dir = parent_dir;
-			} else if(FILE_REGULAR == dir_entry.f_type) {
+			} else if(FILE_REGULAR == dir_entry.f_type) { // 文件
 				searched_record->file_type = FILE_REGULAR;
-				return dir_entry.inode_no; //找到了文件
+				return dir_entry.inode_no;
 			}
 		} else {
-			return -1; // 找不到
+			return -1; // 找不到name对应的目录项
 		}
 
 		memset(name, 0, MAX_FILE_NAME_LEN);
@@ -363,7 +372,6 @@ int search_file(const char *pathname, path_search_record_t *searched_record) {
 			sub_path = path_parse(sub_path, name);
 	}
 
-	searched_record->file_type = FILE_DIRECTORY; // 找到了目录
 	dir_close(searched_record->parent_dir);
 	searched_record->parent_dir = dir_open(current_part, parent_inode_no);
 
@@ -375,7 +383,7 @@ int search_file(const char *pathname, path_search_record_t *searched_record) {
  @retval 文件描述符
  */
 int32_t sys_open(const char *pathname, uint8_t flag) {
-	if(pathname[strlen(pathname) -1] == '/') {
+	if(pathname[strlen(pathname) - 1] == '/') {
 		ERROR("can't open a directory %s\r", pathname);
 		return -1;
 	}
@@ -406,22 +414,33 @@ int32_t sys_open(const char *pathname, uint8_t flag) {
 		goto error_return;
 	}
 
-	switch(flag & O_CREAT)
+	if(flag & O_CREAT)
 	{
-		case O_CREAT:
-			INFO("create file\r");
-			fd = file_create(searched_record.parent_dir, strrchr(pathname, '/') + 1, flag);
-			dir_close(searched_record.parent_dir);
-			break;
-		default:
-			fd = file_open(inode_no, flag);
+		INFO("create file\r");
+		inode_no = file_create(searched_record.parent_dir, strrchr(pathname, '/') + 1);
 	}
 
+	fd = file_open(inode_no, flag);
+	dir_close(searched_record.parent_dir);
 	return fd;
 
 error_return:
 	dir_close(searched_record.parent_dir);
 	return -1;
+}
+
+/*
+ @brief 关闭文件
+ @param fd 文件描述符
+ */
+int32_t sys_close(int32_t fd) {
+	int32_t ret = -1;
+	if(fd > 2) {
+		uint32_t global_fd = fd_local2global(fd);
+		ret = file_close(&file_table[global_fd]);
+		running_thread()->fd_table[fd] = -1;
+	}
+	return ret;
 }
 
 /*
@@ -436,18 +455,24 @@ error_return:
 int32_t sys_unlink(const char *pathname) {
 	ASSERT(strlen(pathname) < MAX_PATH_LEN);
 
+	uint32_t pathname_depth = path_depth_count(pathname);
+
 	path_search_record_t search_record = {0};
 	int inode_no = search_file(pathname, &search_record);
 	if(inode_no == -1) {
 		ERROR("file %s not found\r", pathname);
-		dir_close(search_record.parent_dir);
-		return -1;
+		goto error_return;
 	}
 
 	if(search_record.file_type == FILE_DIRECTORY) {
 		ERROR("can't delete a directory with unlink, use rmdir to insted\r");
-		dir_close(search_record.parent_dir);
-		return -1;
+		goto error_return;
+	}
+
+	uint32_t searched_path_depth = path_depth_count(search_record.searched_path);
+	if(pathname_depth != searched_path_depth) { // 目录层级有问题，缺少目录
+		ERROR("can't access %s : not a directory, subpath %s is't exist\r", pathname, search_record.searched_path);
+		goto error_return;
 	}
 
 	uint32_t file_index = 0;
@@ -458,15 +483,14 @@ int32_t sys_unlink(const char *pathname) {
 	}
 
 	if(file_index < MAX_FILE_OPEN) {
-		dir_close(search_record.parent_dir);
 		ERROR("file %s is in use, not allow to delete\r", pathname);
-		return -1;
+		goto error_return;
 	}
 
 	void *buf = kmalloc(SECTOR_SIZE * 2);
 	if(buf == NULL) {
 		WARN("kmalloc\r");
-		return -1;
+		goto error_return;
 	}
 	
 	dir_t *parent_dir = search_record.parent_dir;
@@ -476,6 +500,25 @@ int32_t sys_unlink(const char *pathname) {
 	kfree(buf, SECTOR_SIZE * 2);
 	dir_close(search_record.parent_dir);
 	return 0;
+
+error_return:
+	dir_close(search_record.parent_dir);
+	return -1;
+}
+
+ssize_t sys_write(int fd, const void *buf, size_t count) {
+	if(fd == STDOUT_FILENO) {
+		return console_write((char *)buf, count);
+	} else {
+		uint32_t globla_fd = fd_local2global(fd);
+		file_t *wr_file = &file_table[globla_fd];
+		if(wr_file->fd_flag & O_WRONLY || wr_file->fd_flag & O_RDWR) {
+			uint32_t bytes_written = file_write(wr_file, buf, count);
+		} else {
+			ERROR("ont alloc to write file without flag W\r");
+			return -1;
+		}
+	}
 }
 
 /*
@@ -554,7 +597,7 @@ int32_t sys_mkdir(const char *pathname) {
 	memset(buf, 0, SECTOR_SIZE * 2);
 	if(!dir_entry_sync(parent_dir, &new_dir_entry, buf)) {
 		ERROR("dir_entry_sync to disk failed\r");
-		rollback_step = 2;
+		rollback_step = 3;
 		goto rollback;
 	}
 
@@ -573,6 +616,9 @@ int32_t sys_mkdir(const char *pathname) {
 
 rollback:
 	switch(rollback_step) {
+		case 3:
+			bitmap_set(&current_part->block_bitmap, block_bitmap_index, bitmap_unused);
+			bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
 		case 2:
 			bitmap_set(&current_part->inode_bitmap, inode_no, bitmap_unused);
 		case 1:
@@ -593,14 +639,20 @@ int32_t sys_rmdir(const char *pathname) {
 	} else if(search_record.file_type == FILE_REGULAR) {
 		ERROR("%s is regular file\r");
 	} else {
-		dir_t *dir = dir_open(current_part, inode_no);
-		if(!dir_is_empty(dir)) {
-			ERROR("dir %s is not empty, it is not allowed to delete a nonempty directory\r", pathname);
+		uint32_t path_depth = path_depth_count(pathname);
+		uint32_t searched_path_depth = path_depth_count(search_record.searched_path);
+		if(path_depth != searched_path_depth) {
+			ERROR("can't access %s, subpath %s is't exist\r", pathname, search_record.searched_path);
 		} else {
-			if(!dir_remove(search_record.parent_dir, dir))
-				ret = 0;
+			dir_t *dir = dir_open(current_part, inode_no);
+			if(!dir_is_empty(dir)) {
+				ERROR("dir %s is not empty, it is not allowed to delete a nonempty directory\r", pathname);
+			} else {
+				if(!dir_remove(search_record.parent_dir, dir))
+					ret = 0;
+			}
+			dir_close(dir);
 		}
-		dir_close(dir);
 	}
 
 	dir_close(search_record.parent_dir);
@@ -625,7 +677,12 @@ dir_t *sys_opendir(const char *name) {
 		if(search_record.file_type == FILE_REGULAR) {
 			ERROR("%s is regular file\r", name);
 		} else {
-			dir = dir_open(current_part, inode_no);
+			uint32_t path_depth = path_depth_count(name);
+			uint32_t searched_path_depth = path_depth_count(search_record.searched_path);
+			if(path_depth != searched_path_depth) {
+				ERROR("can't access %s, subpath %s is't exist\r", name, search_record.searched_path);
+			} else
+				dir = dir_open(current_part, inode_no);
 		}
 	}
 
@@ -687,7 +744,7 @@ char *sys_getcwd(char *buf, uint32_t size) {
 }
 
 /*
- @brief 改变当e工作目录
+ @brief 改变当前工作目录
  @param path 目录的绝对地址
  @retval 0:成功 -1:失败
  */

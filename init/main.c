@@ -50,11 +50,14 @@ void _start(void) {
 	file_system_init();
 	open_root_dir(current_part);
 
-
 	sys_open("/file1", O_CREAT);
 	sys_open("/file2", O_CREAT);
 	sys_mkdir("/dir1");
 	sys_mkdir("/dir2");
+
+	uint32_t fd = sys_open("/file1", O_RDWR);
+	sys_write(fd, "hello world\r", sizeof("hello world\r"));
+	sys_close(fd);
 
 	thread_start("shell", 31, shell, NULL);
 	process_start(u_process_a, "u_process_a");

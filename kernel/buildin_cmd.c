@@ -3,6 +3,7 @@
 #include "../include/kernel/inode.h"
 #include "../include/string.h"
 #include "../include/kernel/mm.h"
+#include "../include/kernel/fs.h"
 
 #include "../include/kernel/debug.h"
 
@@ -101,6 +102,10 @@ void buildin_ls(uint32_t argc, char **argv) {
 	}
 
 	dir_t *dir = sys_opendir(pathname);
+	if(dir == NULL) {
+		ERROR("open dir error\r");
+		return;
+	}
 	dir_entry_t *dir_entry = NULL;
 	dir_rewinddir(dir);
 	while(dir_entry = dir_read(dir)) {

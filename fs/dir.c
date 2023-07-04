@@ -2,7 +2,11 @@
 #include "../include/kernel/mm.h"
 #include "../include/kernel/inode.h"
 #include "../include/string.h"
+#include "../include/kernel/hd.h"
+#include "../include/kernel/fs.h"
 
+#define TAG "dir"
+#define DEBUG_LEVEL 4
 #include "../include/kernel/debug.h"
 
 dir_t root_dir;
@@ -31,7 +35,6 @@ void dir_entry_create(char *filename, uint32_t inode_no, file_type_t file_type, 
  */
 bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 	inode_t *parent_dir_inode = parent_dir->inode;
-	uint32_t dir_size = parent_dir_inode->i_size;
 	uint32_t dir_entry_size = current_part->sb->dir_entry_size;
 	uint32_t dir_entrys_per_sector = SECTOR_SIZE / dir_entry_size;
 	
@@ -52,7 +55,7 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 	block_index = 0;
 	while(block_index < 140) {
 		block_bitmap_index = -1;
-		if(all_block[block_index] == 0) { // 没有分配过块,新分配并写入
+		if(all_block[block_index] == 0) { // 没有分配该块,分配新块并写入
 			block_lba = block_bitmap_alloc(current_part);
 			if(block_lba == -1) {
 				WARN("alloc block bitmap failed\r");
@@ -84,7 +87,7 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 
 				all_block[block_index] = block_lba;
 				hd_write(current_part->disk, all_block[block_index], 1, &all_block[block_index]);
-			} else { //一级间接块存储的直接块
+			} else { // 一级间接块存储的直接块
 				all_block[block_index] = block_lba;
 				hd_write(current_part->disk, all_block[block_index], 1, &all_block[block_index]);
 			}
@@ -101,7 +104,7 @@ bool dir_entry_sync(dir_t *parent_dir, dir_entry_t *p_de, void *buf) {
 		hd_read(current_part->disk, all_block[block_index], 1, (uint8_t *)dir_entry);
 		uint8_t dir_entry_index = 0;
 		while(dir_entry_index < dir_entrys_per_sector) {
-			if((dir_entry + dir_entry_index)->f_type == FILE_NULL) {
+			if((dir_entry + dir_entry_index)->f_type == FILE_NULL) { // 有空闲
 				memcpy(dir_entry + dir_entry_index, p_de, dir_entry_size);
 				hd_write(current_part->disk, all_block[block_index], 1, (uint8_t *)dir_entry);  //写入
 
@@ -225,7 +228,7 @@ bool dir_entry_delete(hd_partition_t *part, dir_t* parent_dir, uint32_t inode_no
 			if((p_de + dir_entry_index)->f_type != FILE_NULL) {
 				if(!strcmp((p_de + dir_entry_index)->filename, "."))
 					is_dir_first_block = true;
-				else if(strcmp((p_de + dir_entry_index)->filename, ".") && strcmp((p_de + dir_entry_index)->filename, ".")) {
+				else if(strcmp((p_de + dir_entry_index)->filename, ".") && strcmp((p_de + dir_entry_index)->filename, "..")) {
 					dir_entry_count++; // 统计目录项个数,用于释放block
 					if((p_de + dir_entry_index)->inode_no == inode_no)
 						dir_entry_found = p_de + dir_entry_index; // 找到了
@@ -250,14 +253,14 @@ bool dir_entry_delete(hd_partition_t *part, dir_t* parent_dir, uint32_t inode_no
 				uint32_t indirect_block = 0;
 				uint32_t indirect_block_index = 12;
 				while(indirect_block_index < block_number) {
-					if(all_block[indirect_block_index] != 0)
-						indirect_block++;
+					if(all_block[indirect_block_index++] != 0)
+						indirect_block++; // 统计一级间接块中存放多少直接块
 				}
 
-				if(indirect_block > 1) {
+				if(indirect_block > 1) { // 只释放这个block
 					all_block[block_index] = 0;
-					hd_write(part->disk, parent_dir_inode->i_zone[block_index], 1, (uint8_t *)(all_block + 12));
-				} else {
+					hd_write(part->disk, parent_dir_inode->i_zone[12], 1, (uint8_t *)(all_block + 12));
+				} else { // 一级间接块也释放
 					block_bitmap_index = parent_dir_inode->i_zone[12] - part->sb->data_start_lba;
 					bitmap_set(&part->block_bitmap, block_bitmap_index, bitmap_unused);
 					bitmap_sync(part, block_bitmap_index, BITMAP_BLOCK);
@@ -397,6 +400,10 @@ void dir_rewinddir(dir_t *dir) {
 	dir->dir_pos = 0;
 }
 
+/*
+ @brief 判断目录是否为空
+ @retval true:空 false:不空
+ */
 bool dir_is_empty(dir_t *dir) {
 	inode_t *dir_inode = dir->inode;
 	return (dir_inode->i_size == current_part->sb->dir_entry_size * 2);
@@ -415,7 +422,6 @@ dir_entry_t *dir_read(dir_t *dir) {
 	uint32_t all_block[140] = {0};
 	uint32_t block_number = 12;
 	uint32_t block_index = 0;
-	uint32_t dir_entry_index = 0;
 
 	while(block_index < block_number) {
 		all_block[block_index] = dir_inode->i_zone[block_index];
@@ -427,38 +433,52 @@ dir_entry_t *dir_read(dir_t *dir) {
 	}
 	block_index = 0;
 
-	uint32_t curret_dir_entry_pos = 0;
 	uint32_t dir_entry_size = current_part->sb->dir_entry_size;
 	uint32_t dir_entrys_per_sector = SECTOR_SIZE / dir_entry_size;
+	uint32_t dir_pos_per_sector = dir_entrys_per_sector * dir_entry_size;
+
+	static uint32_t current_block_offset = 140;
+	static uint32_t current_dir_entry_offset = 0;
+
 	while(block_index < block_number) { // 遍历所有目录项
-		if(dir->dir_pos >= dir_inode->i_size) // 超过了目录的大小
+		if(dir->dir_pos >= dir_inode->i_size) { // 超过了目录的大小
+			current_block_offset = 140;
+			current_dir_entry_offset = 0;
 			return NULL;
+		}
 		
+		if(current_block_offset != 140 && block_index < current_block_offset) {
+			block_index++;
+			continue;
+		}
+
 		if(all_block[block_index] == 0) { // 没有块
 			block_index++;
 			continue;
 		}
 
-		memset(dir_entry, 0, SECTOR_SIZE);
-		hd_read(current_part->disk, all_block[block_index], 1, (uint8_t *)dir_entry);
-		dir_entry_index = 0;
-		while(dir_entry_index < dir_entrys_per_sector) { // 查找下一个未使用的目录项
-			if((dir_entry + dir_entry_index)->f_type) {
-				if(curret_dir_entry_pos < dir->dir_pos) {
-					curret_dir_entry_pos += dir_entry_size;
-					dir_entry_index++;
-					continue;
+		if(current_block_offset == block_index) { // 不用再读一遍
+			/* 找dir_entry */
+			while(current_dir_entry_offset < dir_entrys_per_sector) {
+				if((dir_entry + current_dir_entry_offset)->f_type != 0) {
+					dir_entry_t * ret = dir_entry + current_dir_entry_offset;
+					dir->dir_pos += dir_entry_size;
+					current_dir_entry_offset++;
+					return ret;
 				}
 
-				dir->dir_pos += dir_entry_size;
-				return dir_entry + dir_entry_index;
+				current_dir_entry_offset++;
 			}
-			dir_entry_index++;
+		} else {
+			current_block_offset = block_index;
+			current_dir_entry_offset = 0;
+			memset(dir_entry, 0, SECTOR_SIZE);
+			hd_read(current_part->disk, all_block[block_index], 1, (uint8_t *)dir_entry);
+			continue;
 		}
+
 		block_index++;
 	}
-
-	return NULL;
 }
 
 /*
@@ -467,16 +487,8 @@ dir_entry_t *dir_read(dir_t *dir) {
  @param child_dir 要删除的子目录
  @retval 0:成功 -1:失败
  */
-uint32_t dir_remove(dir_t *parent_dir, dir_t * child_dir) {
+uint32_t dir_remove(dir_t *parent_dir, dir_t *child_dir) {
 	inode_t *child_dir_inode = child_dir->inode;
-	int32_t block_index = 1;
-	while(block_index < 13) {
-		if(child_dir_inode->i_zone[block_index] != 0) {
-			ERROR("dir is not empty\r");
-			return -1;
-		}
-		block_index++;
-	}
 
 	void *buf = kmalloc(SECTOR_SIZE * 2);
 	if(buf == NULL) {
