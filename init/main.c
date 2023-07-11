@@ -77,10 +77,30 @@ void u_process_a(void) {
 	printf("u_process_a pid : %#x\r", pid);
 
 	pid_t child_pid = fork();
-	if(child_pid == 5) {
+	if(child_pid != 0) {
 		INFO("parent\r");
+		INFO("pid : %d, child pid : %d\r", get_pid(), child_pid);
+
+		uint8_t *ptr = malloc(64);
+		if(ptr == NULL) {
+			INFO("malloc\r");
+		}
+		strcpy(ptr, "hello world");
+		INFO("%s\r", ptr);
+		free(ptr, 64);
+
+		uint8_t buf[32] = {0};
+		uint32_t fd = open("/file1", O_RDWR);
+		lseek(fd, 0, SEEK_END);
+		write(fd, "hello world\r", sizeof("hello world\r"));
+		lseek(fd, 0, SEEK_SET);
+		read(fd, buf, sizeof(buf));
+		PRINT_HEX(buf, sizeof(buf));
+		close(fd);
+
 	} else {
 		INFO("child\r");
+		INFO("pid : %d, parent pid : %d\r", get_pid(), get_ppid());
 	}
 	
 	INFO("two print\r");

@@ -3,6 +3,7 @@
 #include "../include/string.h"
 #include "../include/kernel/buildin_cmd.h"
 #include "../include/kernel/fs.h"
+#include "../include/unistd.h"
 
 #define DEBUG_LEVEL 2
 #include "../include/kernel/debug.h"
@@ -29,9 +30,7 @@ static void read_cmd(char *buf, int32_t count) {
 	//1.从keyboard_buf读数据到cmd_line
 	//2.读到\n 该条命令结束
 	char *pos = buf;
-	while(pos - buf < count) {
-		*pos = ioqueue_getchar(&keyboard_buf);
-
+	while(sys_read(STDIN_FILENO, pos, 1) && pos - buf < count) {
 		printk("%c", *pos);
 		switch(*pos) {
 			case '\n': //enter 命令结束

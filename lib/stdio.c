@@ -24,3 +24,9 @@ int printf(const char *fmt, ...) {
 
 	return i;
 }
+
+_syscall3(ssize_t, read, int32_t, fd, void *, buf, uint32_t, count);
+_syscall3(int32_t, lseek, int32_t, fd, int32_t, offset, uint8_t, whence);
+_syscall2(int32_t, open, const char *, pathname, uint8_t, flag);
+_syscall1(int32_t, close, int32_t, fd);
+_syscall1(int32_t, unlink, const char *, pathname);

@@ -2,22 +2,24 @@
 #include "../include/string.h"
 #include "../include/kernel/process.h"
 #include "../include/asm/system.h"
+#include "../include/kernel/file.h"
+#include "../include/kernel/fs.h"
 
 #define TAG "fork"
 #include "../include/kernel/debug.h"
 
 extern void interrupt_exit(void);
 
-pid_t fork(void) {
-	pid_t ret = 0;
+// pid_t fork(void) {
+// 	pid_t ret = 0;
 
-	__asm__ volatile("int 0x80"
-		: "=a" (ret)
-		: "0" (__NR_fork)
-	);
+// 	__asm__ volatile("int 0x80"
+// 		: "=a" (ret)
+// 		: "0" (__NR_fork)
+// 	);
 
-	return ret;
-}
+// 	return ret;
+// }
 
 /*
  @param 复制父进程pcb virtual_addr_bitmap stack0 到子进程
@@ -172,6 +174,18 @@ static int32_t build_child_stack(task_t *child_thread) {
 	return 0;
 }
 
+static void update_inode_open_counts(task_t *thread) {
+	int32_t local_fd = 3;
+	int32_t global_fd = 0;
+	while(local_fd < MAX_FILES_OPEN_PRE_PROCESS) {
+		global_fd = thread->fd_table[local_fd];
+		if(global_fd != -1)
+			file_table[global_fd].fd_inode->i_open_counts++;
+
+		local_fd++;
+	}
+}
+
 static int32_t copy_process(task_t *child_thread, task_t *parent_thread) {
 	void *buf = malloc_kernel_page(1); //内核缓冲区
 	if(buf == NULL) {
@@ -191,6 +205,8 @@ static int32_t copy_process(task_t *child_thread, task_t *parent_thread) {
 	copy_body_stack3(child_thread, parent_thread, buf);
 
 	build_child_stack(child_thread);
+
+	update_inode_open_counts(child_thread);
 
 	// BOCHS_DEBUG_MAGIC
 	// BOCHS_DEBUG_MAGIC //debug

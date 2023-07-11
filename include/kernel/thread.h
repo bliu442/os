@@ -87,6 +87,7 @@ typedef union task_union {
 
 extern task_t *running_thread(void);
 extern pid_t thread_get_pid(void);
+extern pid_t thread_get_ppid(void);
 
 extern pid_t fork_pid(void);
 

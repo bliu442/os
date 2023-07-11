@@ -49,6 +49,10 @@ pid_t thread_get_pid(void) {
 	return running_thread()->pid;
 }
 
+pid_t thread_get_ppid(void) {
+	return running_thread()->ppid;
+}
+
 /* brief 申请pid */
 static pid_t thread_allocate_pid(void) {
 	static pid_t pid = 0;
