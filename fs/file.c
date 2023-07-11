@@ -332,7 +332,7 @@ int32_t file_write(file_t *file, const void *buf, uint32_t count) {
 		src += chunk_size;
 		bytes_writeen += chunk_size;
 		size_left -= chunk_size;
-		file->fd_inode->i_size += chunk_size;
+		file->fd_inode->i_size += chunk_size; // bug
 		file->fd_pos += chunk_size;
 	}
 
@@ -352,4 +352,87 @@ rollback:
 			kfree(io_buf, BLOCK_SIZE);
 			return -1;
 	}
+}
+
+int32_t file_read(file_t *file, void *buf, uint32_t count) {
+	uint8_t *dst = (uint8_t *)buf;
+	uint32_t size = count;
+	uint32_t size_left = size;
+
+	if(file->fd_pos + count > file->fd_inode->i_size) {
+		size = file->fd_inode->i_size - file->fd_pos;
+		size_left = size; // 读剩余
+		if(size == 0)
+			return -1;
+	}
+
+	uint8_t *io_buf = kmalloc(BLOCK_SIZE);
+	if(io_buf == NULL) {
+		ERROR("kmalloc\r");
+		return -1;
+	}
+	uint32_t *all_block = kmalloc(140 * 4);
+	if(all_block == NULL) {
+		ERROR("kmalloc\r");
+		kfree(io_buf, BLOCK_SIZE);
+		return -1;
+	}
+
+	uint32_t block_read_start_index = file->fd_pos / BLOCK_SIZE;
+	uint32_t block_read_end_index = (file->fd_pos + size) / BLOCK_SIZE;
+	uint32_t read_block = block_read_end_index - block_read_start_index;
+
+	int32_t indirect_block_table = 0;
+	uint32_t block_index = 0;
+	if(read_block == 0) {
+		if(block_read_end_index < 12) {
+			block_index = block_read_end_index;
+			all_block[block_index] = file->fd_inode->i_zone[block_index];
+		} else {
+			indirect_block_table = file->fd_inode->i_zone[12];
+			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
+		}
+	} else {
+		if(block_read_end_index < 12) {
+			block_index = block_read_start_index;
+			while(block_index <= block_read_end_index) {
+				all_block[block_index] = file->fd_inode->i_zone[block_index];
+				block_index++;
+			}
+		} else if(block_read_start_index < 12 && block_read_end_index >= 12) {
+			block_index = block_read_start_index;
+			while(block_index < 12) {
+				all_block[block_index] = file->fd_inode->i_zone[block_index];
+				block_index++;
+			}
+			indirect_block_table = file->fd_inode->i_zone[block_index];
+			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
+		} else {
+			indirect_block_table = file->fd_inode->i_zone[12];
+			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
+		}
+	}
+
+	uint32_t sector_index, sector_lba, sector_offset_bytes, sector_left_bytes, chunk_size;
+	uint32_t bytes_read = 0;
+	while(bytes_read < size) {
+		sector_index = file->fd_pos / BLOCK_SIZE;
+		sector_lba = all_block[sector_index];
+		sector_offset_bytes = file->fd_pos % BLOCK_SIZE;
+		sector_left_bytes = BLOCK_SIZE - sector_offset_bytes;
+		chunk_size = size_left < sector_left_bytes ? size_left : sector_left_bytes;
+
+		memset(io_buf, 0, BLOCK_SIZE);
+		hd_read(current_part->disk, sector_lba, 1, io_buf);
+		memcpy(dst, io_buf + sector_offset_bytes, chunk_size);
+
+		dst += chunk_size;
+		file->fd_pos += chunk_size;
+		bytes_read += chunk_size;
+		size_left -= chunk_size;
+	}
+
+	kfree(io_buf, BLOCK_SIZE);
+	kfree(all_block, 140 * 4);
+	return bytes_read;
 }

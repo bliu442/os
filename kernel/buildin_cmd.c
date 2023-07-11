@@ -101,32 +101,63 @@ void buildin_ls(uint32_t argc, char **argv) {
 		pathname = final_path;
 	}
 
-	dir_t *dir = sys_opendir(pathname);
-	if(dir == NULL) {
-		ERROR("open dir error\r");
+	stat_t file_stat = {0};
+	if(sys_stat(pathname, &file_stat) == -1) {
+		printf("ls : connot access %s : no such file or directory\r", pathname);
 		return;
 	}
-	dir_entry_t *dir_entry = NULL;
-	dir_rewinddir(dir);
-	while(dir_entry = dir_read(dir)) {
-		if(long_info) {
-			if(dir_entry->f_type == FILE_DIRECTORY)
-				printk("%4d  %12s  %s\r", COLOR_GREEN, dir_entry->inode_no, dir_entry->f_type == FILE_REGULAR ? "regular" : "directory", dir_entry->filename);
-			else
-				printk("%4d  %12s  %s\r", dir_entry->inode_no, dir_entry->f_type == FILE_REGULAR ? "regular" : "directory", dir_entry->filename);
+
+	if(file_stat.st_filetype == FILE_DIRECTORY) {
+		dir_t *dir = sys_opendir(pathname);
+		if(dir == NULL) {
+			ERROR("open dir error\r");
+			return;
 		}
-		else {
-			if(dir_entry->f_type == FILE_DIRECTORY)
-				printk("%s  ", COLOR_GREEN, dir_entry->filename);
-			else
-				printk("%s  ", dir_entry->filename);
+		dir_entry_t *dir_entry = NULL;
+		dir_rewinddir(dir);
+		
+		char *sub_pathname = kmalloc(MAX_PATH_LEN);
+		if(sub_pathname == NULL) {
+			ERROR("kmalloc\r");
+			return;
 		}
+		uint32_t pathname_len = strlen(pathname);
+		uint32_t last_byte = pathname_len - 1;
+		memcpy(sub_pathname, pathname, pathname_len);
+		if(sub_pathname[last_byte] != '/')
+			sub_pathname[pathname_len++] = '/';
+
+		while(dir_entry = dir_read(dir)) {
+			if(long_info) {
+				sub_pathname[pathname_len] = 0;
+				strcat(sub_pathname, dir_entry->filename);
+				memset(&file_stat, 0, sizeof(stat_t));
+				sys_stat(sub_pathname, &file_stat);
+
+				if(dir_entry->f_type == FILE_DIRECTORY)
+					printk("%12s  %4d  %4d  %s\r", COLOR_GREEN, "directory", dir_entry->inode_no, file_stat.st_size, dir_entry->filename);
+				else
+					printk("%12s  %4d  %4d  %s\r",  "regular", dir_entry->inode_no, file_stat.st_size, dir_entry->filename);
+			}
+			else {
+				if(dir_entry->f_type == FILE_DIRECTORY)
+					printk("%s  ", COLOR_GREEN, dir_entry->filename);
+				else
+					printk("%s  ", dir_entry->filename);
+			}
+		}
+
+		if(!long_info)
+			printk("\r");
+
+		sys_closedir(dir);
+	} else {
+		if(long_info)
+			printf("%12s  %4d  %4d  %s\r", "regular", file_stat.st_inode_no, file_stat.st_size, pathname);
+		else
+			printf("%s\r", pathname);
 	}
 
-	if(!long_info)
-		printk("\r");
-
-	sys_closedir(dir);
 }
 
 int32_t buildin_touch(uint32_t argc, char **argv) {

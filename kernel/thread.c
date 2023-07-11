@@ -213,5 +213,5 @@ void pthread_init(void) {
 	lock_init(&pid_lock);
 	
 	make_main_thread();
-	idle_thread = (task_union_t *)thread_start("idle", 10, idle, NULL);
+	idle_thread = (task_union_t *)thread_start("idle", 1, idle, NULL);
 }

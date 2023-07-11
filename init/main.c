@@ -55,8 +55,13 @@ void _start(void) {
 	sys_mkdir("/dir1");
 	sys_mkdir("/dir2");
 
+	uint8_t buf[32] = {0};
 	uint32_t fd = sys_open("/file1", O_RDWR);
 	sys_write(fd, "hello world\r", sizeof("hello world\r"));
+	sys_lseek(fd, 0, SEEK_SET);
+	sys_read(fd, buf, sizeof(buf));
+	PRINT_HEX(buf, sizeof(buf));
+	INFO(buf, strlen(buf));
 	sys_close(fd);
 
 	thread_start("shell", 31, shell, NULL);

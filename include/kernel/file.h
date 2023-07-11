@@ -21,5 +21,6 @@ extern int32_t file_create(dir_t *parent_dir, char *filename);
 extern int32_t file_open(uint32_t inode_no, uint8_t flag);
 extern int32_t file_close(file_t *file);
 extern int32_t file_write(file_t *file, const void *buf, uint32_t count);
+extern int32_t file_read(file_t *file, void *buf, uint32_t count);
 
 #endif

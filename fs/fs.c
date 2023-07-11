@@ -6,6 +6,7 @@
 #include "../include/kernel/inode.h"
 #include "../include/kernel/thread.h"
 #include "../include/kernel/hd.h"
+#include "../include/kernel/ioqueue.h"
 
 #define TAG "fs"
 #include "../include/kernel/debug.h"
@@ -15,6 +16,8 @@
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
+
+extern ioqueue_t keyboard_buf;
 
 hd_partition_t *current_part;
 
@@ -395,7 +398,7 @@ int32_t sys_open(const char *pathname, uint8_t flag) {
 	int inode_no = search_file(pathname, &searched_record);
 	bool found = inode_no == -1 ? false : true;
 
-	if(searched_record.file_type == FILE_DIRECTORY) { // 找到的是目录
+	if(found && searched_record.file_type == FILE_DIRECTORY) { // 找到的是目录
 		ERROR("can't open a directory\r");
 		goto error_return;
 	}
@@ -519,6 +522,56 @@ ssize_t sys_write(int fd, const void *buf, size_t count) {
 			return -1;
 		}
 	}
+}
+
+ssize_t sys_read(int32_t fd, void *buf, uint32_t count) {
+	int32_t ret = -1;
+	uint32_t global_fd = 0;
+	if(fd < 0 || fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+		ERROR("fd error\r");
+	} else if(fd == STDIN_FILENO) {
+		char *buffer = buf;
+		uint32_t bytes_read = 0;
+		while(bytes_read < count) {
+			*buffer = ioqueue_getchar(&keyboard_buf);
+			bytes_read++;
+			buffer++;
+		}
+		ret = (bytes_read == 0 ? -1 : bytes_read);
+	} else {
+		global_fd = fd_local2global(fd);
+		ret = file_read(&file_table[global_fd], buf, count);
+	}
+
+	return ret;
+}
+
+int32_t sys_lseek(int32_t fd, int32_t offset, uint8_t whence) {
+	if(fd < 0) {
+		ERROR("fd error\r");
+	}
+
+	uint32_t globla_fd = fd_local2global(fd);
+	file_t *p_file = &file_table[globla_fd];
+	int32_t new_pos = 0;
+	uint32_t file_size = p_file->fd_inode->i_size;
+	switch(whence) {
+		case SEEK_SET:
+			new_pos = offset;
+			break;
+		case SEEK_CUR:
+			new_pos = (int32_t)p_file->fd_pos + offset;
+			break;
+		case SEEK_END:
+			new_pos = (int32_t)p_file->fd_pos + offset; // offset应该为负数
+			break;
+	}
+
+	if(new_pos < 0 || new_pos > file_size -1)
+		return -1;
+
+	p_file->fd_pos = new_pos;
+	return p_file->fd_pos;
 }
 
 /*
@@ -760,6 +813,36 @@ int32_t sys_chdir(const char *path) {
 			ERROR("%s is regular file\r");
 		}
 	}
+	dir_close(search_record.parent_dir);
+	return ret;
+}
+
+int32_t sys_stat(const char *path, stat_t *stat) {
+	if(!strcmp(path, "/") || !strcmp(path, "/.") || !strcmp(path, "/..")) {
+		stat->st_filetype = FILE_DIRECTORY;
+		stat->st_inode_no = current_part->sb->root_inode_no;
+		stat->st_size = root_dir.inode->i_size;
+		return 0;
+	}
+
+	int32_t ret = -1;
+	path_search_record_t search_record = {0};
+	int inode_no = search_file(path, &search_record);
+	if(inode_no != -1) {
+		uint32_t path_depth = path_depth_count(path);
+		uint32_t searched_path_depth = path_depth_count(search_record.searched_path);
+		if(path_depth != searched_path_depth) {
+			ERROR("can't access %s, subpath %s is't exist\r", path, search_record.searched_path);
+		} else {
+			inode_t *inode = inode_open(current_part, inode_no);
+			stat->st_filetype = search_record.file_type;
+			stat->st_inode_no = inode_no;
+			stat->st_size = inode->i_size;
+			inode_close(inode);
+			ret = 0;
+		}
+	}
+
 	dir_close(search_record.parent_dir);
 	return ret;
 }

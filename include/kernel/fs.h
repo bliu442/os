@@ -50,6 +50,12 @@ typedef enum bitmap_type {
 	BITMAP_BLOCK,
 }bitmap_type_t;
 
+enum whence {
+	SEEK_SET = 1,
+	SEEK_CUR,
+	SEEK_END
+};
+
 typedef struct super_block {
 	uint32_t magic; //文件系统类型
 	
@@ -97,6 +103,12 @@ typedef struct path_search_record {
 	file_type_t file_type;
 }path_search_record_t;
 
+typedef struct stat {
+	uint32_t st_inode_no;
+	uint32_t st_size;
+	file_type_t st_filetype;
+}stat_t;
+
 extern void file_system_init(void);
 
 extern int32_t inode_bitmap_alloc(hd_partition_t *part);
@@ -110,6 +122,8 @@ extern int32_t sys_open(const char *pathname, uint8_t flag);
 extern int32_t sys_close(int32_t fd);
 extern int32_t sys_unlink(const char *pathname);
 extern ssize_t sys_write(int fd, const void *buf, size_t count);
+extern ssize_t sys_read(int32_t fd, void *buf, uint32_t count);
+extern int32_t sys_lseek(int32_t fd, int32_t offset, uint8_t whence);
 
 extern int32_t sys_mkdir(const char *pathname);
 extern int32_t sys_rmdir(const char *pathname);
@@ -117,5 +131,6 @@ extern dir_t *sys_opendir(const char *name);
 extern int32_t sys_closedir(dir_t *dir);
 extern char *sys_getcwd(char *buf, uint32_t size);
 extern int32_t sys_chdir(const char *path);
+extern int32_t sys_stat(const char *path, stat_t *stat);
 
 #endif
