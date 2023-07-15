@@ -14,16 +14,17 @@ GCCFLAGS := $(strip $(GCCFLAGS))
 DEBUG := -g
 
 all:compiling ld
-	xxd -i main.elf main.elf.h
-	xxd -i main.o main.o.h
+	xxd -i user.elf user.elf.h
+	xxd -i user.o user.o.h
 
 compiling:
-	gcc $(GCCFLAGS) $(DEBUG) -c main.c -o main.o -I ../include/stdio.h
+	gcc $(GCCFLAGS) $(DEBUG) -c user.c -o user.o -I ../include/stdio.h
 
+#用户进程基址空间从0xB0000000-0xC0000000
 ld:
-	ld -m elf_i386 main.o ../Build/lib/stdio.o ../Build/kernel/chr_drv/vsprintf.o ../Build/lib/write.o \
+	ld -m elf_i386 user.o ../Build/lib/stdio.o ../Build/kernel/chr_drv/vsprintf.o ../Build/lib/write.o \
 	../Build/lib/string.o ../Build/lib/error.o \
-	-o main.elf -e main
+	-o user.elf -e user -Ttext 0xB0010000 --Tdata 0xB0020000 -Tbss 0xB0030000
 
 clean:
-	rm -rf main.o main.elf
+	rm -rf user.o user.elf

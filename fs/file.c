@@ -189,6 +189,7 @@ int32_t file_write(file_t *file, const void *buf, uint32_t count) {
 		rollback_step = 1;
 		goto rollback;
 	}
+	memset(all_block, 0, 140 * 4); // mark malloc空间使用必须先清零!!!
 
 	const uint8_t * src = buf; // 待写入数据
 	uint32_t bytes_writeen = 0; // 统计写入多少byte
@@ -258,7 +259,7 @@ int32_t file_write(file_t *file, const void *buf, uint32_t count) {
 				rollback_step = 2;
 				goto rollback;
 			}
-			file->fd_inode->i_zone[12] = block_lba;
+			indirect_block_table = file->fd_inode->i_zone[12] = block_lba;
 			block_bitmap_index = block_lba - current_part->sb->data_start_lba;
 			bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
 
@@ -285,6 +286,7 @@ int32_t file_write(file_t *file, const void *buf, uint32_t count) {
 				bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
 				block_index++;
 			}
+			hd_write(current_part->disk, indirect_block_table, 1, all_block + 12); // 同步一级间接表
 		} else {
 			ASSERT(file->fd_inode->i_zone[12] != 0);
 
@@ -399,13 +401,14 @@ int32_t file_read(file_t *file, void *buf, uint32_t count) {
 				block_index++;
 			}
 		} else if(block_read_start_index < 12 && block_read_end_index >= 12) {
+			indirect_block_table = file->fd_inode->i_zone[12];
+			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
+			
 			block_index = block_read_start_index;
 			while(block_index < 12) {
-				all_block[block_index] = file->fd_inode->i_zone[block_index];
+				all_block[block_index] = file->fd_inode->i_zone[block_index]; // mark 在前面的时候赋值不成功
 				block_index++;
 			}
-			indirect_block_table = file->fd_inode->i_zone[block_index];
-			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);
 		} else {
 			indirect_block_table = file->fd_inode->i_zone[12];
 			hd_read(current_part->disk, indirect_block_table, 1, all_block + 12);

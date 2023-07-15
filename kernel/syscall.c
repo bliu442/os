@@ -14,7 +14,7 @@ void *syscall_table[SYSCALL_TABLE_SIZE] = {
 	sys_get_ppid,
 	sys_fork,
 
-	NULL,
+	sys_execv,
 	NULL,
 	NULL,
 	NULL,
@@ -39,6 +39,7 @@ void *syscall_table[SYSCALL_TABLE_SIZE] = {
 	sys_close,
 
 	sys_unlink,
+	sys_stat,
 };
 
 void *sys_malloc(size_t size) {

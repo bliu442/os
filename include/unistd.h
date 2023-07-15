@@ -14,6 +14,7 @@ extern int errno;
 #define __NR_get_pid 2
 #define __NR_get_ppid 3
 #define __NR_fork 4
+#define __NR_execv 5
 
 #define __NR_write 20
 #define __NR_read 21
@@ -22,10 +23,12 @@ extern int errno;
 #define __NR_close 24
 
 #define __NR_unlink 25
+#define __NR_stat 26
 
 extern pid_t get_pid(void);
 extern pid_t get_ppid(void);
 extern pid_t fork(void);
+extern int32_t execv(const char * path, const char ** argv);
 
 #define _syscall0(type, name) \
 type name(void) \

@@ -95,7 +95,13 @@ void inode_release(hd_partition_t *part, uint32_t inode_no) {
 
 	uint8_t block_index = 0;
 	uint8_t block_number = 12;
-	uint32_t all_block[140] = {0};
+	uint32_t *all_block = kmalloc(140 * 4);
+	if(all_block == NULL) {
+		ERROR("kmalloc\r");
+		return;
+	}
+	memset(all_block, 0, 140 * 4);
+
 	uint32_t block_bitmap_index = 0;
 
 	while(block_index < block_number) {
@@ -103,7 +109,7 @@ void inode_release(hd_partition_t *part, uint32_t inode_no) {
 		block_index++;
 	}
 	if(delete_inode->i_zone[block_index] != 0) {
-		hd_read(part, delete_inode->i_zone[block_index], 1, &all_block[block_index]);
+		hd_read(part->disk, delete_inode->i_zone[block_index], 1, all_block + 12);
 		block_number = 140;
 		
 		block_bitmap_index = delete_inode->i_zone[block_index] - part->sb->data_start_lba;
@@ -114,7 +120,7 @@ void inode_release(hd_partition_t *part, uint32_t inode_no) {
 	block_index = 0;
 	while(block_index < block_number) {
 		if(all_block[block_index] != 0) {
-			block_bitmap_index = all_block[block_index] - part->sb->data_start_lba;
+			block_bitmap_index = all_block[block_index] - part->sb->data_start_lba; // mark 硬盘数据没有释放,置位bitmap可能出错
 			bitmap_set(&part->block_bitmap, block_bitmap_index, bitmap_unused);
 			bitmap_sync(current_part, block_bitmap_index, BITMAP_BLOCK);
 		}

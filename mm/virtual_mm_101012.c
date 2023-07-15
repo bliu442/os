@@ -299,7 +299,7 @@ void *malloc_a_page(pool_flag_t pf, uint32_t virtual_addr) {
 	}
 
 	bit_index = (virtual_addr - virtual_pool->addr_start) / PAGE_SIZE;
-	ASSERT(bit_index > 0);
+	ASSERT(bit_index >= 0);
 	ASSERT(bitmap_used != bitmap_scan(&virtual_pool->pool_bitmap, bit_index));
 	bitmap_set(&virtual_pool->pool_bitmap, bit_index, bitmap_used);
 

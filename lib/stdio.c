@@ -3,6 +3,7 @@
 #include "../include/kernel/print.h"
 #include "../include/stdarg.h"
 #include "../include/unistd.h"
+#include "../include/stdio.h"
 
 static char buf[1024]; //mark
 
@@ -30,3 +31,5 @@ _syscall3(int32_t, lseek, int32_t, fd, int32_t, offset, uint8_t, whence);
 _syscall2(int32_t, open, const char *, pathname, uint8_t, flag);
 _syscall1(int32_t, close, int32_t, fd);
 _syscall1(int32_t, unlink, const char *, pathname);
+_syscall2(int32_t, stat, const char *, path, stat_t *, stat);
+

@@ -4,12 +4,12 @@
 #include "../include/kernel/buildin_cmd.h"
 #include "../include/kernel/fs.h"
 #include "../include/unistd.h"
+#include "../include/kernel/syscall.h"
 
 #define DEBUG_LEVEL 2
 #include "../include/kernel/debug.h"
 
 extern ioqueue_t keyboard_buf;
-extern int32_t sys_execv(const char *path, const char *argv[]);
 
 static char cmd_line[cmd_size];
 int32_t argc = -1;

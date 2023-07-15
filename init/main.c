@@ -18,7 +18,9 @@
 #include "../include/kernel/fs.h"
 #include "../include/kernel/dir.h"
 #include "../include/kernel/file.h"
-#include "../user_program/main.elf.h"
+#include "../user_program/user.elf.h"
+
+#include "../include/kernel/debug.h"
 
 extern void u_process_a(void);
 
@@ -56,6 +58,7 @@ void _start(void) {
 	sys_mkdir("/dir1");
 	sys_mkdir("/dir2");
 
+#if 0
 	uint8_t buf[32] = {0};
 	uint32_t fd = sys_open("/file1", O_RDWR);
 	sys_write(fd, "hello world\r", sizeof("hello world\r"));
@@ -64,11 +67,32 @@ void _start(void) {
 	PRINT_HEX(buf, sizeof(buf));
 	INFO(buf, strlen(buf));
 	sys_close(fd);
+#endif
 
 #if 0 // 将elf文件写入磁盘
 	sys_open("/user_program", O_CREAT);
 	uint32_t fd1 = sys_open("/user_program", O_RDWR);
-	sys_write(fd1, main_elf, main_elf_len);
+	sys_write(fd1, user_elf, user_elf_len);
+	sys_close(fd1);
+#endif
+#if 0 // 读校验
+	uint8_t *elf_buf = kmalloc(512);
+	if(elf_buf == NULL) {
+		ERROR("kmalloc\r");
+	}
+	uint32_t fd1 = sys_open("/user_program", O_RDONLY); // 能确保磁盘中的数据是正确的,但读磁盘过快会失败
+	uint32_t offset = 0;
+	uint32_t read_size = 0;
+	uint32_t index = 0;
+	while(offset < user_elf_len) {
+		memset(elf_buf, 0, 512);
+		read_size = sys_read(fd1, elf_buf, 512);
+		if(memcmp(elf_buf, user_elf + offset, read_size)) {
+			ERROR("read disk error\r");
+		}
+		offset += read_size;
+		index++;
+	}
 	sys_close(fd1);
 #endif
 
@@ -91,6 +115,16 @@ void u_process_a(void) {
 	} else {
 		INFO("child\r");
 		INFO("pid : %d, parent pid : %d\r", get_pid(), get_ppid());
+	
+#if 1
+		stat_t file_stat = {0};
+		if(stat("/user_program", &file_stat) == -1) {
+			ERROR("cannot access %s No such file or firectory\r", "/user_program");
+		} else {
+			execv("/user_program", NULL);
+		}
+#endif
+
 	}
 	
 	INFO("two print\r");

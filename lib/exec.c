@@ -3,10 +3,12 @@
 #include "../include/kernel/fs.h"
 #include "../include/string.h"
 #include "../include/kernel/mm.h"
+#include "../include/asm/system.h"
 
 #include "../include/kernel/debug.h"
 
 extern void interrupt_exit(void);
+extern const unsigned char user_elf[];
 
 typedef uint32_t Elf32_Word, Elf32_Addr, Elf32_Off;
 typedef uint16_t Elf32_Half;
@@ -95,7 +97,18 @@ static bool segment_load(int32_t fd, uint32_t offset, uint32_t filesz, uint32_t 
 		page_index++;
 	}
 	sys_lseek(fd, offset, SEEK_SET);
-	sys_read(fd, vaddr, filesz); // 拷贝到内存
+	uint32_t size = sys_read(fd, vaddr, filesz); // 拷贝到内存
+	if(size != filesz) {
+		ERROR("sys_read read elf error\r");
+		return false;
+	}
+	if(filesz > 0) {
+		if(memcmp((void *)vaddr, user_elf + offset, filesz)) {
+			ERROR("cmp elf error\r");
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -136,6 +149,10 @@ static int32_t load(const char *pathname) {
 			goto done;
 		}
 
+		// INFO("addr : %#x\r", prog_header.p_vaddr);
+		// INFO("offset : %#x\r", prog_header.p_offset);
+		// INFO("size : %#x\r", prog_header.p_filesz);
+		
 		if(PT_LOAD == prog_header.p_type) { // 3.加载程序到内存
 			if(!segment_load(fd, prog_header.p_offset, prog_header.p_filesz, prog_header.p_vaddr)) {
 				ret = -1;
@@ -146,6 +163,7 @@ static int32_t load(const char *pathname) {
 		prog_header_offset += elf_header.e_phentsize; // 4.下一个程序头
 		prog_index++;
 	}
+	ret = elf_header.e_entry;
 
 done:
 	sys_close(fd);
@@ -154,8 +172,8 @@ done:
 
 int32_t sys_execv(const char *path, const char *argv[]) {
 	uint32_t argc = 0;
-	while(argv[argc])
-		argc++;
+	// while(argv[argc]) // debug
+	// 	argc++;
 
 	int32_t entry_point = load(path);
 	if(entry_point == -1)
@@ -164,11 +182,29 @@ int32_t sys_execv(const char *path, const char *argv[]) {
 	task_t *current = running_thread();
 	memcpy(current->name, path, 32);
 
-	interrupt_stack_t *int_0_stack = (interrupt_stack_t *)(uint32_t)current + PAGE_SIZE - sizeof(interrupt_stack_t);
-	int_0_stack->ebx = (int32_t)argv;
-	int_0_stack->ecx = argc;
-	int_0_stack->eip = entry_point;
-	int_0_stack->esp = 0xC0000000;
+	interrupt_stack_t *int_0_stack = (interrupt_stack_t *)((uint32_t)current + PAGE_SIZE - sizeof(interrupt_stack_t));
+	// int_0_stack->ebx = (int32_t)argv;
+	// int_0_stack->ecx = argc;
 
-	__asm__ volatile("mov %0, %%esp; jmp interrupt_exit" :: "g" (int_0_stack) : "memory");
+	int_0_stack->edi = int_0_stack->esi = int_0_stack->ebp = int_0_stack->esp = 0;
+	int_0_stack->ebx = int_0_stack->edx = int_0_stack->ecx = int_0_stack->eax = 0;
+	int_0_stack->gs = int_0_stack->fs = int_0_stack->es = int_0_stack->ds = R3_DATA_SELECTOR;
+	int_0_stack->eip = (uint32_t)entry_point;
+	int_0_stack->cs = R3_CODE_SELECTOR;
+	int_0_stack->eflags = EFLAGS_IOPL_0 | EFLAGS_MBS | EFLAGS_IF_1;
+	int_0_stack->esp_old = 0xC0000000;
+	int_0_stack->ss_old = R3_DATA_SELECTOR;
+
+	BOCHS_DEBUG_MAGIC
+	BOCHS_DEBUG_MAGIC
+
+	__asm__("mov esp, %0;"
+		"pop gs;"
+		"pop fs;"
+		"pop es;"
+		"pop ds;"
+		"popad;"
+		"add esp, 8;"
+		"iret"
+		:: "g" (int_0_stack): "memory");
 }
