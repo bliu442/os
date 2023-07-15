@@ -18,6 +18,7 @@
 #include "../include/kernel/fs.h"
 #include "../include/kernel/dir.h"
 #include "../include/kernel/file.h"
+#include "../user_program/main.elf.h"
 
 extern void u_process_a(void);
 
@@ -64,6 +65,13 @@ void _start(void) {
 	INFO(buf, strlen(buf));
 	sys_close(fd);
 
+#if 0 // 将elf文件写入磁盘
+	sys_open("/user_program", O_CREAT);
+	uint32_t fd1 = sys_open("/user_program", O_RDWR);
+	sys_write(fd1, main_elf, main_elf_len);
+	sys_close(fd1);
+#endif
+
 	thread_start("shell", 31, shell, NULL);
 	process_start(u_process_a, "u_process_a");
 
@@ -80,24 +88,6 @@ void u_process_a(void) {
 	if(child_pid != 0) {
 		INFO("parent\r");
 		INFO("pid : %d, child pid : %d\r", get_pid(), child_pid);
-
-		uint8_t *ptr = malloc(64);
-		if(ptr == NULL) {
-			INFO("malloc\r");
-		}
-		strcpy(ptr, "hello world");
-		INFO("%s\r", ptr);
-		free(ptr, 64);
-
-		uint8_t buf[32] = {0};
-		uint32_t fd = open("/file1", O_RDWR);
-		lseek(fd, 0, SEEK_END);
-		write(fd, "hello world\r", sizeof("hello world\r"));
-		lseek(fd, 0, SEEK_SET);
-		read(fd, buf, sizeof(buf));
-		PRINT_HEX(buf, sizeof(buf));
-		close(fd);
-
 	} else {
 		INFO("child\r");
 		INFO("pid : %d, parent pid : %d\r", get_pid(), get_ppid());

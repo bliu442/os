@@ -267,8 +267,6 @@ int32_t file_write(file_t *file, const void *buf, uint32_t count) {
 
 			block_index = file_has_used_blocks;
 			while(block_index < file_will_use_blocks) {
-				ASSERT(file->fd_inode->i_zone[block_index] == 0);
-
 				block_lba = block_bitmap_alloc(current_part);
 				if(block_lba == -1) {
 					ERROR("block bitmap alloc failed\r");
@@ -277,6 +275,7 @@ int32_t file_write(file_t *file, const void *buf, uint32_t count) {
 				}
 
 				if(block_index < 12) {
+					ASSERT(file->fd_inode->i_zone[block_index] == 0);
 					file->fd_inode->i_zone[block_index] = all_block[block_index] = block_lba;
 				} else {
 					all_block[block_index] = block_lba;

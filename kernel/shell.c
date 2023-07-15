@@ -9,6 +9,7 @@
 #include "../include/kernel/debug.h"
 
 extern ioqueue_t keyboard_buf;
+extern int32_t sys_execv(const char *path, const char *argv[]);
 
 static char cmd_line[cmd_size];
 int32_t argc = -1;
@@ -105,6 +106,20 @@ static void cmd_execute(uint32_t argc, char **argv) {
 		buildin_rm(argc, argv);
 	} else if(!strcmp("touch", argv[0])) {
 		buildin_touch(argc, argv);
+	} else {
+		// int32_t pid = fork(); // shell用的是线程
+		// if(pid) {
+		// 	// 父进程
+		// } else {
+		// 	make_clear_abs_path(argv[0], final_path);
+		// 	argv[0] = final_path;
+		// 	stat_t file_stat = {0};
+		// 	if(sys_stat(argv[0], &file_stat) == -1) {
+		// 		ERROR("cannot access %s No such file or firectory\r", argv[0]);
+		// 	} else {
+		// 		sys_execv(argv[0], argv);
+		// 	}
+		// }
 	}
 }
 
