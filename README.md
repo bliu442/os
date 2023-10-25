@@ -1,0 +1,1 @@
+在linux系统下调试,windows下.elf文件会自动有更改,git不能正常checkout
